@@ -58,6 +58,43 @@ def feature_ranking_bar(feature_ranking: list[dict[str, Any]]):
     )
 
 
+def drift_shift_bar(drift_summary: dict[str, Any]):
+    """Build a chart for top reference/current distribution shifts."""
+
+    if not drift_summary.get("available"):
+        return None
+    frame = pd.DataFrame(drift_summary.get("top_shifted_features", []))
+    if frame.empty or "value" not in frame.columns:
+        return None
+    frame["abs_value"] = frame["value"].abs()
+    frame = frame.sort_values("abs_value", ascending=False).head(20)
+    return px.bar(
+        frame,
+        x="abs_value",
+        y="column",
+        orientation="h",
+        color="status" if "status" in frame.columns else "metric",
+        title="Top Reference/Current Distribution Shifts",
+    )
+
+
+def quality_check_status_bar(quality_checks: dict[str, Any]):
+    """Build a quality gate status count chart."""
+
+    summary = quality_checks.get("summary", {})
+    if not summary:
+        return None
+    frame = pd.DataFrame(
+        [
+            {"status": status, "count": int(summary.get(status, 0))}
+            for status in ["pass", "warn", "fail"]
+        ]
+    )
+    if frame["count"].sum() == 0:
+        return None
+    return px.bar(frame, x="status", y="count", title="Quality Check Status")
+
+
 def correlation_heatmap(bivariate_summary: dict[str, Any]):
     """Build a numeric correlation heatmap."""
 

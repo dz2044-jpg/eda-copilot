@@ -14,6 +14,9 @@ def build_markdown_report(evidence_packet: dict[str, Any]) -> str:
     ranking = evidence_packet.get("feature_ranking", [])
     missing = evidence_packet.get("missingness_summary", {})
     bivariate = evidence_packet.get("bivariate_summary", {})
+    profile = evidence_packet.get("profile_summary", {})
+    quality_checks = evidence_packet.get("quality_checks", {})
+    comparison = evidence_packet.get("comparison_summary", {})
     caveats = evidence_packet.get("caveats", [])
 
     lines = [
@@ -25,6 +28,7 @@ def build_markdown_report(evidence_packet: dict[str, Any]) -> str:
         f"- Duplicate rows detected: {overview['duplicate_row_count']:,}.",
         f"- Data quality warnings: {len(quality):,}.",
         f"- Leakage warnings: {len(leakage):,}.",
+        f"- Quality gate status: {quality_checks.get('overall_status', 'unavailable')}.",
         _response_summary_line(response),
         "",
         "## Dataset Overview",
@@ -35,6 +39,14 @@ def build_markdown_report(evidence_packet: dict[str, Any]) -> str:
         f"| Columns | {overview['column_count']:,} |",
         f"| Memory usage bytes | {overview['memory_usage_bytes']:,} |",
         f"| Duplicate rows | {overview['duplicate_row_count']:,} |",
+        "",
+        "## Native Profile Summary",
+        "",
+        *_profile_lines(profile),
+        "",
+        "## Quality Checks",
+        "",
+        *_quality_check_lines(quality_checks),
         "",
         "## Response Variable Summary",
         "",
@@ -60,9 +72,13 @@ def build_markdown_report(evidence_packet: dict[str, Any]) -> str:
         "",
         *_bivariate_lines(bivariate),
         "",
+        "## Reference/Current Comparison",
+        "",
+        *_comparison_lines(comparison),
+        "",
         "## Recommended Next Steps",
         "",
-        *_next_steps(quality, leakage, response),
+        *_next_steps(quality, leakage, response, quality_checks),
         "",
         "## Appendix: Caveats",
         "",
@@ -136,6 +152,49 @@ def _warning_table(rows: list[dict[str, Any]], columns: list[str]) -> list[str]:
     return lines
 
 
+def _profile_lines(profile: dict[str, Any]) -> list[str]:
+    if not profile:
+        return ["- Native profile summary is unavailable."]
+    alert_summary = profile.get("alert_summary", {})
+    sensitive_report = profile.get("sensitive_report", {})
+    return [
+        f"- Profile depth: `{profile.get('profile_depth')}`.",
+        f"- Alert count: {alert_summary.get('total', 0)}.",
+        f"- Alert categories: {_cell(alert_summary.get('by_category', {}))}.",
+        f"- Redacted columns: {_cell(sensitive_report.get('redacted_columns', []))}.",
+        f"- Text summaries: {len(profile.get('text_summary', []))}.",
+        f"- Datetime summaries: {len(profile.get('datetime_summary', []))}.",
+    ]
+
+
+def _quality_check_lines(quality_checks: dict[str, Any]) -> list[str]:
+    checks = quality_checks.get("checks", [])
+    if not checks:
+        return ["- No quality checks were generated."]
+    lines = [
+        "| Status | Severity | Check | Metric | Value | Threshold |",
+        "| --- | --- | --- | --- | ---: | --- |",
+    ]
+    priority = {"fail": 0, "warn": 1, "pass": 2}
+    sorted_checks = sorted(checks, key=lambda row: priority.get(str(row.get("status")), 3))[:25]
+    for check in sorted_checks:
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    _cell(check.get("status")),
+                    _cell(check.get("severity")),
+                    _cell(check.get("name")),
+                    _cell(check.get("metric_name")),
+                    _cell(check.get("metric_value")),
+                    _cell(check.get("threshold")),
+                ]
+            )
+            + " |"
+        )
+    return lines
+
+
 def _top_missingness_lines(missing: dict[str, Any]) -> list[str]:
     columns = sorted(
         missing.get("columns", []),
@@ -190,12 +249,38 @@ def _bivariate_lines(bivariate: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _comparison_lines(comparison: dict[str, Any]) -> list[str]:
+    if not comparison.get("available"):
+        return [f"- {comparison.get('reason', 'Reference/current comparison is unavailable.')}"]
+    changes = comparison.get("top_column_changes", [])
+    lines = [
+        f"- Comparison column: `{comparison.get('comparison_column')}`.",
+        f"- Reference/current groups: `{comparison.get('reference_group')}` / `{comparison.get('current_group')}`.",
+    ]
+    if not changes:
+        return lines + ["- No column-level comparison rows were generated."]
+    lines += [
+        "| Column | Metric | Missing delta | Change score |",
+        "| --- | --- | ---: | ---: |",
+    ]
+    for row in changes[:15]:
+        lines.append(
+            f"| `{row.get('column')}` | {_cell(row.get('comparison_metric'))} | "
+            f"{float(row.get('missing_percentage_delta', 0.0)):.2%} | "
+            f"{float(row.get('change_score') or 0.0):.4f} |"
+        )
+    return lines
+
+
 def _next_steps(
     quality: list[dict[str, Any]],
     leakage: list[dict[str, Any]],
     response: dict[str, Any],
+    quality_checks: dict[str, Any],
 ) -> list[str]:
     steps = []
+    if quality_checks.get("overall_status") == "fail":
+        steps.append("- Resolve failed quality checks or document accepted exceptions before downstream modeling.")
     if leakage:
         steps.append("- Review high-severity leakage candidates before modeling.")
     if quality:

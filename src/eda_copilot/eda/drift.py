@@ -38,20 +38,51 @@ def analyze_drift(
         if pdt.is_numeric_dtype(df[column]):
             smd = _standardized_mean_difference(df.loc[mask_base, column], df.loc[mask_comp, column])
             if smd is not None:
-                shifted_features.append({"column": column, "metric": "standardized_mean_difference", "value": smd})
+                shifted_features.append(
+                    {
+                        "column": column,
+                        "metric": "standardized_mean_difference",
+                        "value": smd,
+                        "status": _drift_status(smd, config),
+                    }
+                )
         else:
             psi = _categorical_psi(df.loc[mask_base, column], df.loc[mask_comp, column])
-            shifted_features.append({"column": column, "metric": "categorical_psi", "value": psi})
+            shifted_features.append(
+                {
+                    "column": column,
+                    "metric": "categorical_psi",
+                    "value": psi,
+                    "status": _drift_status(psi, config),
+                }
+            )
 
     shifted_features = sorted(shifted_features, key=lambda item: abs(item["value"]), reverse=True)
+    status = "pass"
+    if any(item["status"] == "fail" for item in shifted_features):
+        status = "fail"
+    elif any(item["status"] == "warn" for item in shifted_features):
+        status = "warn"
     return {
         "available": True,
+        "overall_status": status,
         "group_column": group_column,
         "baseline_group": baseline,
         "comparison_group": comparison,
+        "warning_threshold": config.drift_warning_threshold,
+        "fail_threshold": config.drift_fail_threshold,
         "row_count_by_group": {str(key): int(value) for key, value in group_counts.items()},
         "top_shifted_features": shifted_features[:25],
     }
+
+
+def _drift_status(value: float, config: EDAConfig) -> str:
+    abs_value = abs(float(value))
+    if abs_value >= config.drift_fail_threshold:
+        return "fail"
+    if abs_value >= config.drift_warning_threshold:
+        return "warn"
+    return "pass"
 
 
 def _standardized_mean_difference(left: pd.Series, right: pd.Series) -> float | None:

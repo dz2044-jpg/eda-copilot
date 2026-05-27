@@ -23,18 +23,20 @@ def build_dataset_overview(
         if column in df.columns
     }
     profile_map = profiles_by_name(type_summary)
-    data_dictionary = [
-        {
-            "column": column,
-            "pandas_dtype": profile_map[column]["pandas_dtype"],
-            "semantic_type": profile_map[column]["semantic_type"],
-            "roles": profile_map[column]["roles"],
-            "missing_percentage": profile_map[column]["missing_percentage"],
-            "unique_count": profile_map[column]["unique_count"],
-            "sample_values": profile_map[column]["sample_values"],
-        }
-        for column in df.columns
-    ]
+    data_dictionary = []
+    for column in df.columns:
+        profile = profile_map[column]
+        data_dictionary.append(
+            {
+                "column": column,
+                "pandas_dtype": profile["pandas_dtype"],
+                "semantic_type": profile["semantic_type"],
+                "roles": profile["roles"],
+                "missing_percentage": profile["missing_percentage"],
+                "unique_count": profile["unique_count"],
+                "sample_values": _sample_values_for_report(profile, config),
+            }
+        )
 
     return {
         "dataset_name": config.dataset_name,
@@ -45,6 +47,47 @@ def build_dataset_overview(
         "duplicate_row_percentage": float(duplicate_rows / max(len(df), 1)),
         "duplicate_id_counts": duplicate_id_counts,
         "column_type_summary": type_summary["summary"],
-        "sample_rows": records_from_frame(df.head(5)),
+        "sample_policy": config.sample_policy,
+        "sample_rows": _sample_rows_for_report(df, config, profile_map),
         "data_dictionary": to_jsonable(data_dictionary),
     }
+
+
+def _sample_values_for_report(profile: dict[str, Any], config: EDAConfig) -> list[Any]:
+    if config.sample_policy == "none":
+        return []
+    if config.sample_policy == "redacted" and _should_redact(profile, config):
+        return ["<REDACTED>"] if profile["non_null_count"] else []
+    return profile["sample_values"]
+
+
+def _sample_rows_for_report(
+    df: pd.DataFrame,
+    config: EDAConfig,
+    profile_map: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if config.sample_policy == "none":
+        return []
+    records = records_from_frame(df.head(5))
+    if config.sample_policy != "redacted":
+        return records
+
+    redacted_columns = {
+        column
+        for column, profile in profile_map.items()
+        if _should_redact(profile, config)
+    }
+    for record in records:
+        for column in redacted_columns:
+            if column in record and record[column] is not None:
+                record[column] = "<REDACTED>"
+    return records
+
+
+def _should_redact(profile: dict[str, Any], config: EDAConfig) -> bool:
+    roles = set(profile.get("roles", []))
+    return bool(
+        profile["name"] in config.sensitive_columns
+        or profile["name"] in config.id_columns
+        or {"sensitive", "id", "id_candidate"} & roles
+    )

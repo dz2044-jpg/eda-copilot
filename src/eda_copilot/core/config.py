@@ -13,6 +13,8 @@ ProblemType = Literal[
     "regression",
     "unsupervised",
 ]
+ProfileDepth = Literal["minimal", "standard", "deep"]
+SamplePolicy = Literal["redacted", "preview", "none"]
 
 
 class EDAValidationError(ValueError):
@@ -34,6 +36,10 @@ class EDAConfig:
         exclude_columns: Columns excluded from feature-level analysis.
         sensitive_columns: Optional protected columns for future fairness analysis.
         weight_column: Optional observation weight column.
+        profile_depth: Controls how much profiling detail is generated.
+        sample_policy: Controls whether row previews are redacted, raw, or omitted.
+        drift_warning_threshold: Absolute drift metric value that emits a warning check.
+        drift_fail_threshold: Absolute drift metric value that fails a quality gate.
     """
 
     dataset_name: str = "dataset"
@@ -46,6 +52,8 @@ class EDAConfig:
     exclude_columns: tuple[str, ...] = field(default_factory=tuple)
     sensitive_columns: tuple[str, ...] = field(default_factory=tuple)
     weight_column: str | None = None
+    profile_depth: ProfileDepth = "standard"
+    sample_policy: SamplePolicy = "redacted"
     max_categories: int = 20
     rare_category_threshold: float = 0.01
     high_cardinality_threshold: int = 50
@@ -54,6 +62,8 @@ class EDAConfig:
     high_correlation_threshold: float = 0.80
     high_auc_leakage_threshold: float = 0.98
     max_correlation_columns: int = 50
+    drift_warning_threshold: float = 0.20
+    drift_fail_threshold: float = 0.50
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-friendly configuration dictionary."""
@@ -86,6 +96,14 @@ def validate_config_against_dataframe(df: pd.DataFrame, config: EDAConfig) -> No
         raise EDAValidationError("The dataset is empty. Upload a file with at least one row.")
     if len(df.columns) == 0:
         raise EDAValidationError("The dataset has no columns.")
+    if config.profile_depth not in {"minimal", "standard", "deep"}:
+        raise EDAValidationError("profile_depth must be one of: minimal, standard, deep.")
+    if config.sample_policy not in {"redacted", "preview", "none"}:
+        raise EDAValidationError("sample_policy must be one of: redacted, preview, none.")
+    if config.drift_warning_threshold < 0 or config.drift_fail_threshold < 0:
+        raise EDAValidationError("Drift thresholds must be non-negative.")
+    if config.drift_warning_threshold > config.drift_fail_threshold:
+        raise EDAValidationError("drift_warning_threshold must be less than or equal to drift_fail_threshold.")
 
     configured_columns: dict[str, str | tuple[str, ...] | None] = {
         "response_column": config.response_column,
