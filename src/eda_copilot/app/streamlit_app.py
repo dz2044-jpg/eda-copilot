@@ -11,6 +11,7 @@ import streamlit as st
 from eda_copilot.ai.query_planner import plan_evidence_question
 from eda_copilot.ai.summarizer import deterministic_summary_placeholder
 from eda_copilot.core.config import EDAConfig, EDAValidationError
+from eda_copilot.core.data_loading import load_tabular_dataset
 from eda_copilot.core.workflow import run_eda
 from eda_copilot.reporting.export import export_run_artifacts
 from eda_copilot.visualization.gallery import build_plot_gallery
@@ -91,19 +92,18 @@ def _load_dataset_ui() -> tuple[pd.DataFrame | None, str]:
         st.session_state["loaded_df"] = _sample_dataset()
         st.session_state["loaded_dataset_name"] = "sample_credit"
     if uploaded is not None:
-        suffix = Path(uploaded.name).suffix.lower()
-        if suffix == ".csv":
-            st.session_state["loaded_df"] = pd.read_csv(uploaded)
-            st.session_state["loaded_dataset_name"] = Path(uploaded.name).stem
-        elif suffix == ".parquet":
-            st.session_state["loaded_df"] = pd.read_parquet(uploaded)
-            st.session_state["loaded_dataset_name"] = Path(uploaded.name).stem
-        else:
-            st.sidebar.error("Unsupported file type.")
+        try:
+            loaded = load_tabular_dataset(uploaded, uploaded.name)
+        except EDAValidationError as exc:
+            st.sidebar.error(str(exc))
             return None, "dataset"
+        st.session_state["loaded_df"] = loaded.dataframe
+        st.session_state["loaded_dataset_name"] = loaded.dataset_name
     if "loaded_df" not in st.session_state:
         return None, "dataset"
-    return st.session_state["loaded_df"], st.session_state.get("loaded_dataset_name", "dataset")
+    df = st.session_state["loaded_df"]
+    st.sidebar.caption(f"Loaded {len(df):,} rows x {len(df.columns):,} columns")
+    return df, st.session_state.get("loaded_dataset_name", "dataset")
 
 
 def _configuration_ui(df: pd.DataFrame, dataset_name: str) -> EDAConfig:

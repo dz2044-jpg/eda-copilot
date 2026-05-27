@@ -32,8 +32,16 @@ def build_dataset_overview(
                 "pandas_dtype": profile["pandas_dtype"],
                 "semantic_type": profile["semantic_type"],
                 "roles": profile["roles"],
+                "normalized_name": profile.get("normalized_name"),
                 "missing_percentage": profile["missing_percentage"],
                 "unique_count": profile["unique_count"],
+                "warnings": profile.get("warnings", []),
+                "schema_warnings": profile.get("schema_warnings", []),
+                "name_warnings": profile.get("name_warnings", []),
+                "python_type_counts": profile.get("python_type_counts", {}),
+                "numeric_parse_rate": profile.get("numeric_parse_rate"),
+                "datetime_parse_rate": profile.get("datetime_parse_rate"),
+                "boolean_parse_rate": profile.get("boolean_parse_rate"),
                 "sample_values": _sample_values_for_report(profile, config),
             }
         )

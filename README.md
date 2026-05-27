@@ -4,10 +4,11 @@ EDA Copilot is a deterministic, response-aware exploratory data analysis tool fo
 
 ## MVP scope
 
-- CSV and Parquet loading through Streamlit
+- CSV and Parquet loading through a reusable loader and Streamlit
 - Optional sample dataset
 - Response variable selection
 - Automatic column type inference
+- Additive schema inspection metadata and parse-candidate hints
 - Dataset overview
 - Missingness analysis
 - Univariate analysis

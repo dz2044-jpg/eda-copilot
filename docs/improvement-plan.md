@@ -61,7 +61,7 @@ Status: In progress
     contracts, fallback behavior, and evidence-only AI rules.
 
 - [ ] Phase 2: Strengthen deterministic EDA foundation
-  - Status: Not started
+  - Status: In progress
   - Extend the existing `eda_copilot.eda` modules rather than creating a
     duplicate deterministic tools package.
   - Improve loading, schema inspection, profiling, response analysis, feature
@@ -166,8 +166,8 @@ Status: In progress
     validation checklist.
   - No new EDA calculations.
 
-- [ ] PR 3: Dataset loading and schema inspection improvements
-  - Status: Not started
+- [x] PR 3: Dataset loading and schema inspection improvements
+  - Status: Completed
   - Strengthen existing loading and type/schema inspection behavior.
 
 - [ ] PR 4: Data quality profiling improvements

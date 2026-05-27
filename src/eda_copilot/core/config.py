@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
@@ -92,10 +93,12 @@ def validate_config_against_dataframe(df: pd.DataFrame, config: EDAConfig) -> No
         EDAValidationError: If the dataset is empty or configured columns are absent.
     """
 
-    if df.empty:
-        raise EDAValidationError("The dataset is empty. Upload a file with at least one row.")
     if len(df.columns) == 0:
         raise EDAValidationError("The dataset has no columns.")
+    if len(df) == 0:
+        raise EDAValidationError("The dataset is empty. Upload a file with at least one row.")
+    _validate_dataframe_column_labels(df)
+    _validate_configured_column_lists(config)
     if config.profile_depth not in {"minimal", "standard", "deep"}:
         raise EDAValidationError("profile_depth must be one of: minimal, standard, deep.")
     if config.sample_policy not in {"redacted", "preview", "none"}:
@@ -127,3 +130,38 @@ def validate_config_against_dataframe(df: pd.DataFrame, config: EDAConfig) -> No
     if missing:
         joined = ", ".join(missing)
         raise EDAValidationError(f"Configured columns are missing from the dataset: {joined}.")
+
+
+def _validate_dataframe_column_labels(df: pd.DataFrame) -> None:
+    duplicate_columns = [str(column) for column in df.columns[df.columns.duplicated()].unique()]
+    if duplicate_columns:
+        joined = ", ".join(duplicate_columns)
+        raise EDAValidationError(f"Dataset column names must be unique. Duplicates: {joined}.")
+
+    non_string_columns = [repr(column) for column in df.columns if not isinstance(column, str)]
+    if non_string_columns:
+        joined = ", ".join(non_string_columns)
+        raise EDAValidationError(f"Dataset column names must be strings. Invalid columns: {joined}.")
+
+    blank_columns = [repr(column) for column in df.columns if not column.strip()]
+    if blank_columns:
+        joined = ", ".join(blank_columns)
+        raise EDAValidationError(f"Dataset column names must not be blank. Invalid columns: {joined}.")
+
+
+def _validate_configured_column_lists(config: EDAConfig) -> None:
+    configured_column_groups = {
+        "id_columns": config.id_columns,
+        "date_columns": config.date_columns,
+        "segment_columns": config.segment_columns,
+        "exclude_columns": config.exclude_columns,
+        "sensitive_columns": config.sensitive_columns,
+    }
+    duplicate_configured_columns = []
+    for label, values in configured_column_groups.items():
+        duplicates = sorted(item for item, count in Counter(values).items() if count > 1)
+        duplicate_configured_columns.extend(f"{label}={column}" for column in duplicates)
+
+    if duplicate_configured_columns:
+        joined = ", ".join(duplicate_configured_columns)
+        raise EDAValidationError(f"Configured column lists contain duplicate entries: {joined}.")

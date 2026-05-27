@@ -6,6 +6,16 @@ EDA Copilot follows deterministic-first analysis.
 
 Columns are assigned semantic types using pandas dtype, observed cardinality, missingness, top-value dominance, parseable dates, text length, ID-like uniqueness, and suspicious name patterns.
 
+## Schema inspection
+
+The type inference step also reports schema diagnostics without modifying the
+source dataframe. These diagnostics include normalized column names, name
+warnings, Python value type counts, text-column parse rates, normalized-name
+collisions, and candidate columns that appear parseable as numeric, datetime, or
+boolean values. Parse candidates are review signals only; downstream EDA keeps
+the loaded dataframe dtypes unchanged unless a later preprocessing step converts
+them explicitly.
+
 ## Binary response analysis
 
 For binary targets, the workflow encodes a deterministic positive class. Common positive labels such as `1`, `true`, `yes`, `event`, `bad`, `claim`, and `lapse` take precedence. Otherwise, the positive class is the last class after string sorting. The report flags this as a caveat so the user can confirm it.

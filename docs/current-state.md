@@ -12,6 +12,8 @@ sanitized evidence.
 - `eda_copilot.core.config.EDAConfig` defines user-controlled run settings such
   as response column, problem type, ID columns, date columns, split column,
   profile depth, sample policy, and quality thresholds.
+- `eda_copilot.core.data_loading` provides reusable CSV and Parquet loading with
+  friendly validation errors and lightweight load metadata.
 - `eda_copilot.eda` owns deterministic profiling, type inference, missingness,
   response analysis, bivariate analysis, feature ranking, leakage checks, drift,
   comparison, and quality checks.
@@ -52,6 +54,11 @@ top-level sections:
 Dynamic values such as timestamps are implementation details and should not be
 used as stable test fixtures.
 
+`column_type_summary` includes additive schema inspection metadata such as
+normalized column names, name warnings, Python type counts, parse-rate hints, and
+parse candidate column lists. These fields are diagnostic only; PR 3 does not
+coerce dataframe values or change source dtypes.
+
 ## Exported Artifacts
 
 When `run_eda(..., export_artifacts=True)` is used, the workflow creates a
@@ -84,7 +91,8 @@ values from the evidence context.
 
 ## Known Limitations
 
-- The current workflow supports local CSV and Parquet loading through Streamlit.
+- The current workflow supports local CSV and Parquet loading through a reusable
+  local file loader and the Streamlit upload UI.
 - The baseline does not include runtime skill execution, Databricks connectors,
   model-readiness scoring, run comparison history, or domain adapters.
 - Multiclass response summaries exist, but feature-level multiclass tests are
