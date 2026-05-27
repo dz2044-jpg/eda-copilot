@@ -4,6 +4,9 @@ __pycache__/
 *.py[cod]
 .DS_Store
 
+# Local secrets and environment-specific settings.
+.env
+
 # Generated EDA outputs can contain project-specific data.
 artifacts/runs/*
 !artifacts/runs/.gitkeep
