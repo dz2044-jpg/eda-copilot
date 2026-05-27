@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eda-copilot.local/schemas/run_full_eda_output.schema.json",
+  "title": "Run Full EDA Output",
+  "description": "Documentation-level contract for the deterministic EDA Copilot run result.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["evidence_packet", "markdown_report", "artifact_dir"],
+  "properties": {
+    "evidence_packet": {
+      "type": "object",
+      "description": "JSON-serializable deterministic evidence packet."
+    },
+    "markdown_report": {
+      "type": "string",
+      "description": "Markdown report generated from the evidence packet."
+    },
+    "artifact_dir": {
+      "type": ["string", "null"],
+      "description": "Exported run folder path when artifacts are enabled."
+    },
+    "exported_artifacts": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Expected artifact names when export_artifacts is enabled."
+    }
+  }
+}

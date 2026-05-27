@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eda-copilot.local/schemas/run_full_eda_input.schema.json",
+  "title": "Run Full EDA Input",
+  "description": "Documentation-level contract for configuring an EDA Copilot run. The dataframe itself is supplied by the host runtime and is represented here by dataset_ref only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["dataset_ref", "config"],
+  "properties": {
+    "dataset_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-local dataset handle, filename, table label, or dataframe variable name."
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dataset_name"],
+      "properties": {
+        "dataset_name": {
+          "type": "string",
+          "default": "dataset"
+        },
+        "response_column": {
+          "type": ["string", "null"],
+          "default": null
+        },
+        "problem_type": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "binary_classification",
+            "multiclass_classification",
+            "regression",
+            "unsupervised"
+          ],
+          "default": "auto"
+        },
+        "id_columns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "date_columns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "train_test_column": {
+          "type": ["string", "null"],
+          "default": null
+        },
+        "segment_columns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "exclude_columns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "sensitive_columns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "weight_column": {
+          "type": ["string", "null"],
+          "default": null
+        },
+        "profile_depth": {
+          "type": "string",
+          "enum": ["minimal", "standard", "deep"],
+          "default": "standard"
+        },
+        "sample_policy": {
+          "type": "string",
+          "enum": ["redacted", "preview", "none"],
+          "default": "redacted"
+        },
+        "max_categories": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 20
+        },
+        "rare_category_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.01
+        },
+        "high_cardinality_threshold": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 50
+        },
+        "high_missingness_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.4
+        },
+        "near_constant_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.98
+        },
+        "high_correlation_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.8
+        },
+        "high_auc_leakage_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.98
+        },
+        "max_correlation_columns": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 50
+        },
+        "drift_warning_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.2
+        },
+        "drift_fail_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.5
+        }
+      }
+    },
+    "export_artifacts": {
+      "type": "boolean",
+      "default": false
+    },
+    "output_base_dir": {
+      "type": ["string", "null"],
+      "default": null
+    }
+  }
+}

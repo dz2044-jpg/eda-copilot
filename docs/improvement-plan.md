@@ -42,8 +42,8 @@ Status: In progress
 
 ## Phase Checklist
 
-- [ ] Phase 0: Freeze current baseline
-  - Status: Not started
+- [x] Phase 0: Freeze current baseline
+  - Status: Completed
   - Document the current app purpose, deterministic modules, evidence packet
     fields, artifact outputs, AI privacy behavior, and known limitations.
   - Add baseline tests for top-level evidence packet keys and exported artifact
@@ -51,8 +51,8 @@ Status: In progress
   - Acceptance gate: current workflow behavior is unchanged and `uv run pytest`
     passes.
 
-- [ ] Phase 1: Add `tabular-eda-skill` skeleton
-  - Status: Not started
+- [x] Phase 1: Add `tabular-eda-skill` skeleton
+  - Status: Completed
   - Create `skills/tabular-eda-skill/` with `SKILL.md`, action docs, schemas,
     examples, references, fallback behavior, and a validation checklist.
   - Align skill actions with existing `EDAConfig`, `run_eda`, evidence packet,
@@ -154,14 +154,14 @@ Status: In progress
 
 ## Immediate PR Sequence
 
-- [ ] PR 1: Product repositioning and baseline protection
-  - Status: Not started
+- [x] PR 1: Product repositioning and baseline protection
+  - Status: Completed
   - Add current-state, product-vision, and skill-direction docs.
   - Add baseline protection tests for evidence packet shape and artifact names.
   - No runtime behavior changes.
 
-- [ ] PR 2: `tabular-eda-skill` skeleton
-  - Status: Not started
+- [x] PR 2: `tabular-eda-skill` skeleton
+  - Status: Completed
   - Add the skill package, action docs, schemas, examples, fallback behavior, and
     validation checklist.
   - No new EDA calculations.
