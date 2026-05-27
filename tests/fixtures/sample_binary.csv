@@ -1,0 +1,9 @@
+application_id,age,income,risk_class,channel,final_decision_score,approved,split
+A0001,22,45000,standard,agent,0.10,0,train
+A0002,35,72000,preferred,web,0.90,1,train
+A0003,44,88000,standard,agent,0.20,0,train
+A0004,51,91000,substandard,partner,0.85,1,train
+A0005,29,,preferred,web,0.70,1,test
+A0006,62,120000,preferred,agent,0.95,1,test
+A0007,38,64000,standard,partner,0.30,0,test
+A0008,47,77000,substandard,web,0.80,1,test
