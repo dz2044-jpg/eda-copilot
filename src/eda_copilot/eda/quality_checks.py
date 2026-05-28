@@ -10,11 +10,13 @@ from eda_copilot.utils.serialization import to_jsonable
 def build_quality_checks(
     config: EDAConfig,
     dataset_overview: dict[str, Any],
+    response_summary: dict[str, Any],
     missingness_summary: dict[str, Any],
     bivariate_summary: dict[str, Any],
     data_quality_warnings: list[dict[str, Any]],
     leakage_warnings: list[dict[str, Any]],
     drift_summary: dict[str, Any],
+    modeling_risk_summary: dict[str, Any],
 ) -> dict[str, Any]:
     """Build deterministic pass/fail checks for audit and CI-style review."""
 
@@ -30,11 +32,13 @@ def build_quality_checks(
             evidence="Input validation passed before profiling.",
         )
     ]
+    checks.extend(_response_warning_checks(response_summary))
     checks.extend(_warning_checks(data_quality_warnings))
     checks.extend(_leakage_checks(leakage_warnings))
     checks.extend(_missingness_checks(config, missingness_summary))
     checks.extend(_correlation_checks(config, bivariate_summary))
     checks.extend(_drift_checks(config, drift_summary))
+    checks.extend(_modeling_risk_checks(modeling_risk_summary))
 
     counts = Counter(check["status"] for check in checks)
     overall_status = "fail" if counts.get("fail", 0) else "warn" if counts.get("warn", 0) else "pass"
@@ -59,13 +63,35 @@ def _warning_checks(warnings: list[dict[str, Any]]) -> list[dict[str, Any]]:
         status = "fail" if severity == "high" else "warn"
         checks.append(
             _check(
-                check_id=f"quality.{warning.get('issue_type', 'warning')}.{warning.get('column') or 'dataset'}",
+                check_id=f"quality.{warning.get('warning_id') or warning.get('issue_type', 'warning')}.{warning.get('column') or warning.get('scope') or 'dataset'}",
                 name=f"Data quality: {warning.get('issue_type')}",
                 status=status,
                 severity=severity,
-                metric_name=str(warning.get("issue_type")),
-                metric_value=warning.get("column") or "dataset",
-                threshold="no high-severity warnings",
+                metric_name=str(warning.get("metric_name") or warning.get("issue_type")),
+                metric_value=warning.get("metric_value", warning.get("column") or "dataset"),
+                threshold=warning.get("threshold", "no high-severity warnings"),
+                evidence=str(warning.get("evidence", "")),
+                recommended_action=warning.get("recommended_action"),
+            )
+        )
+    return checks
+
+
+def _response_warning_checks(response_summary: dict[str, Any]) -> list[dict[str, Any]]:
+    checks = []
+    for warning in response_summary.get("warnings", []):
+        severity = str(warning.get("severity", "low"))
+        issue_type = str(warning.get("issue_type", "warning"))
+        status = "pass" if issue_type == "positive_class_auto_selected" else "fail" if severity == "high" else "warn"
+        checks.append(
+            _check(
+                check_id=f"response.{warning.get('warning_id') or warning.get('issue_type', 'warning')}",
+                name=f"Response: {warning.get('issue_type')}",
+                status=status,
+                severity=severity,
+                metric_name=str(warning.get("metric_name") or warning.get("issue_type")),
+                metric_value=warning.get("metric_value"),
+                threshold=warning.get("threshold"),
                 evidence=str(warning.get("evidence", "")),
                 recommended_action=warning.get("recommended_action"),
             )
@@ -210,6 +236,39 @@ def _drift_checks(config: EDAConfig, drift_summary: dict[str, Any]) -> list[dict
                 metric_value=max((abs(float(row.get("value", 0.0))) for row in shifted), default=0.0),
                 threshold=config.drift_warning_threshold,
                 evidence="No compared feature exceeded configured drift thresholds.",
+            )
+        )
+    return checks
+
+
+def _modeling_risk_checks(modeling_risk_summary: dict[str, Any]) -> list[dict[str, Any]]:
+    checks = []
+    for risk in modeling_risk_summary.get("risks", []):
+        severity = str(risk.get("severity", "low"))
+        checks.append(
+            _check(
+                check_id=f"modeling_risk.{risk.get('risk_id')}",
+                name=f"Modeling risk: {risk.get('category')}",
+                status="fail" if severity == "high" else "warn",
+                severity=severity,
+                metric_name=str(risk.get("metric_name") or risk.get("category")),
+                metric_value=risk.get("metric_value"),
+                threshold=risk.get("threshold"),
+                evidence=str(risk.get("evidence", "")),
+                recommended_action=risk.get("recommended_action"),
+            )
+        )
+    if not checks:
+        checks.append(
+            _check(
+                check_id="modeling_risk.review_queue",
+                name="No deterministic modeling risk signals",
+                status="pass",
+                severity="medium",
+                metric_name="modeling_risk_count",
+                metric_value=0,
+                threshold=0,
+                evidence="No deterministic modeling risk signals were generated.",
             )
         )
     return checks

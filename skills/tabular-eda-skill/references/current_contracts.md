@@ -52,6 +52,7 @@ The current packet includes:
 - `data_quality_warnings`
 - `leakage_warnings`
 - `drift_summary`
+- `modeling_risk_summary`
 - `quality_checks`
 - `comparison_summary`
 - `visual_specs`
@@ -66,9 +67,12 @@ When export is enabled, expect these names in the run folder:
 
 - `input_manifest.json`
 - `config_snapshot.json`
+- `run_metadata.json`
 - `evidence_packet.json`
 - `comparison_summary.json`
 - `visual_specs.json`
+- `modeling_risk_summary.json`
+- `artifact_manifest.json`
 - `data_quality_warnings.csv`
 - `profile_alerts.csv`
 - `quality_checks.csv`

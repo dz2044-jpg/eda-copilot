@@ -39,3 +39,32 @@ def test_quality_checks_pass_missingness_gate_when_clean() -> None:
         check for check in checks if check["check_id"] == "missingness.high_columns"
     ][0]
     assert missingness_check["status"] == "pass"
+
+
+def test_data_quality_warnings_are_structured_and_schema_aware() -> None:
+    df = pd.DataFrame(
+        {
+            "Account ID": ["A1", "A1", "A3", "A4"],
+            "account-id": ["B1", "B2", "B3", "B4"],
+            "amount_text": ["10.5", "20.0", "30.25", "40.0"],
+            "flag_text": ["yes", "no", "yes", "no"],
+            "target": [0, 0, 1, 1],
+        }
+    )
+
+    result = run_eda(
+        df,
+        EDAConfig(
+            response_column="target",
+            id_columns=("Account ID",),
+        ),
+    )
+    warnings = result.evidence_packet["data_quality_warnings"]
+    by_issue = {warning["issue_type"]: warning for warning in warnings}
+
+    assert by_issue["duplicate_id_values"]["warning_id"] == "duplicate_id_values.account_id"
+    assert by_issue["duplicate_id_values"]["scope"] == "column"
+    assert by_issue["duplicate_id_values"]["metric_name"] == "duplicate_id_count"
+    assert by_issue["normalized_name_collision"]["scope"] == "schema"
+    assert by_issue["numeric_parse_candidate"]["column"] == "amount_text"
+    assert by_issue["boolean_parse_candidate"]["column"] == "flag_text"

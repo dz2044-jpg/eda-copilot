@@ -68,6 +68,13 @@ def plan_evidence_question(question: str, evidence_packet: dict[str, Any]) -> di
             sources=["quality_checks", "data_quality_warnings"],
             answer=_format_quality_answer(quality_checks),
         )
+    if "modeling risk" in lowered or "model readiness" in lowered or "readiness" in lowered:
+        modeling = context.get("modeling_risk_summary", {})
+        return _response(
+            status="planned",
+            sources=["modeling_risk_summary"],
+            answer=_format_modeling_risk_answer(modeling),
+        )
     if "feature" in lowered or "rank" in lowered or "important" in lowered:
         return _response(
             status="planned",
@@ -140,6 +147,20 @@ def _format_quality_answer(quality_checks: dict[str, Any]) -> str:
     return (
         f"Quality gate status is {quality_checks.get('overall_status')}: "
         f"{summary.get('pass', 0)} pass, {summary.get('warn', 0)} warn, {summary.get('fail', 0)} fail."
+    )
+
+
+def _format_modeling_risk_answer(modeling: dict[str, Any]) -> str:
+    if not modeling:
+        return "Modeling risk evidence is not available."
+    summary = modeling.get("summary", {})
+    risks = modeling.get("risks", [])[:5]
+    risk_columns = [str(row.get("column")) for row in risks if row.get("column")]
+    detail = f" Top risk columns: {', '.join(risk_columns)}." if risk_columns else ""
+    return (
+        f"Modeling risk status is {modeling.get('overall_status')}; "
+        f"{summary.get('total', 0)} deterministic risk signals were generated."
+        f"{detail}"
     )
 
 

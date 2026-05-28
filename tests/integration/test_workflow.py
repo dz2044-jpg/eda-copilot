@@ -1,9 +1,11 @@
 from pathlib import Path
+import json
 
 import pandas as pd
 
 from eda_copilot.core.config import EDAConfig
 from eda_copilot.core.workflow import run_eda
+from eda_copilot.reporting.validation import validate_artifact_manifest
 
 
 def test_workflow_builds_evidence_packet_and_exports(tmp_path: Path) -> None:
@@ -30,8 +32,14 @@ def test_workflow_builds_evidence_packet_and_exports(tmp_path: Path) -> None:
     assert (result.artifact_dir / "quality_checks.csv").exists()
     assert (result.artifact_dir / "profile_alerts.csv").exists()
     assert (result.artifact_dir / "visual_specs.json").exists()
+    assert (result.artifact_dir / "run_metadata.json").exists()
+    assert (result.artifact_dir / "artifact_manifest.json").exists()
     assert result.evidence_packet["dataset_overview"]["row_count"] == 4
     assert "profile_summary" in result.evidence_packet
     assert "quality_checks" in result.evidence_packet
+    assert "modeling_risk_summary" in result.evidence_packet
     assert "comparison_summary" in result.evidence_packet
     assert "visual_specs" in result.evidence_packet
+
+    manifest = json.loads((result.artifact_dir / "artifact_manifest.json").read_text(encoding="utf-8"))
+    assert validate_artifact_manifest(manifest, result.artifact_dir) == []

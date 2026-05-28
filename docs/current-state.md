@@ -43,6 +43,7 @@ top-level sections:
 - `data_quality_warnings`
 - `leakage_warnings`
 - `drift_summary`
+- `modeling_risk_summary`
 - `quality_checks`
 - `comparison_summary`
 - `visual_specs`
@@ -69,6 +70,9 @@ timestamped run folder containing:
 - `evidence_packet.json`
 - `comparison_summary.json`
 - `visual_specs.json`
+- `modeling_risk_summary.json`
+- `run_metadata.json`
+- `artifact_manifest.json`
 - `data_quality_warnings.csv`
 - `profile_alerts.csv`
 - `quality_checks.csv`
@@ -94,7 +98,9 @@ values from the evidence context.
 - The current workflow supports local CSV and Parquet loading through a reusable
   local file loader and the Streamlit upload UI.
 - The baseline does not include runtime skill execution, Databricks connectors,
-  model-readiness scoring, run comparison history, or domain adapters.
+  formal model-readiness approval scoring, or domain adapters.
+- Exported run folders now include metadata and manifests that support
+  evidence-only run history and comparison.
 - Multiclass response summaries exist, but feature-level multiclass tests are
   still limited.
 - AI summary generation is optional and not required for deterministic reports.

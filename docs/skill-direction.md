@@ -35,7 +35,6 @@ and use a deterministic fallback rather than inventing findings.
 
 ## Future Expansion
 
-Future PRs may add runtime action handlers, formal schemas, richer AI summary
-actions, model-readiness scoring, run history, and domain adapters. Those
-changes should extend the current deterministic foundation and include focused
-tests.
+Future PRs may add runtime action handlers, richer AI summary actions, formal
+model-readiness scoring, and optional domain adapters. Those changes should
+extend the current deterministic foundation and include focused tests.

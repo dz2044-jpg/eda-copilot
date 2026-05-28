@@ -22,12 +22,20 @@ def build_feature_ranking(
     }
     quality_by_column = _warning_map(data_quality_warnings, "issue_type")
     leakage_by_column = _warning_map(leakage_warnings, "reason")
+    quality_details_by_column = _warning_details_by_column(data_quality_warnings)
+    leakage_details_by_column = _warning_details_by_column(leakage_warnings)
 
     rows = []
     for profile in feature_profiles(type_summary, config):
         column = profile["name"]
         response = response_by_column.get(column, {})
         signal_metric, signal_value, signal_score = _signal_from_response(response_summary, response)
+        quality_warnings = quality_by_column.get(column, [])
+        leakage_warnings_for_column = leakage_by_column.get(column, [])
+        quality_penalty = _quality_penalty(
+            quality_details_by_column.get(column, []),
+            leakage_details_by_column.get(column, []),
+        )
         rows.append(
             {
                 "column": column,
@@ -37,23 +45,35 @@ def build_feature_ranking(
                 "signal_metric": signal_metric,
                 "signal_value": signal_value,
                 "signal_score": signal_score,
+                "signal_direction": response.get("signal_direction"),
+                "quality_penalty": quality_penalty,
+                "recommended_review_reason": _recommended_review_reason(
+                    column=column,
+                    signal_metric=signal_metric,
+                    quality_warnings=quality_warnings,
+                    leakage_warnings=leakage_warnings_for_column,
+                ),
                 "response_rate_spread": response.get("response_rate_spread"),
                 "auc": response.get("auc"),
                 "auc_abs": response.get("auc_abs"),
                 "chi_square_p_value": response.get("chi_square_p_value"),
-                "data_quality_warnings": quality_by_column.get(column, []),
-                "leakage_warnings": leakage_by_column.get(column, []),
+                "data_quality_warnings": quality_warnings,
+                "leakage_warnings": leakage_warnings_for_column,
             }
         )
 
-    return sorted(
+    sorted_rows = sorted(
         rows,
         key=lambda item: (
             bool(item["leakage_warnings"]),
             item["signal_score"] if item["signal_score"] is not None else -1.0,
+            -float(item["quality_penalty"]),
         ),
         reverse=True,
     )
+    for index, row in enumerate(sorted_rows, start=1):
+        row["rank"] = index
+    return sorted_rows
 
 
 def _signal_from_response(
@@ -91,3 +111,39 @@ def _warning_map(warnings: list[dict[str, Any]], label_key: str) -> dict[str, li
             continue
         mapped.setdefault(column, []).append(str(warning.get(label_key)))
     return mapped
+
+
+def _warning_details_by_column(warnings: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    mapped: dict[str, list[dict[str, Any]]] = {}
+    for warning in warnings:
+        column = warning.get("column")
+        if not column:
+            continue
+        mapped.setdefault(str(column), []).append(warning)
+    return mapped
+
+
+def _quality_penalty(
+    quality_warnings: list[dict[str, Any]],
+    leakage_warnings: list[dict[str, Any]],
+) -> float:
+    weights = {"high": 0.5, "medium": 0.25, "low": 0.1}
+    score = 0.0
+    for warning in [*quality_warnings, *leakage_warnings]:
+        score += weights.get(str(warning.get("severity", "low")), 0.1)
+    return min(score, 1.0)
+
+
+def _recommended_review_reason(
+    column: str,
+    signal_metric: str | None,
+    quality_warnings: list[str],
+    leakage_warnings: list[str],
+) -> str:
+    if leakage_warnings:
+        return "Review potential leakage before using this feature."
+    if quality_warnings:
+        return "Review data quality warnings before modeling."
+    if signal_metric:
+        return f"Review because `{column}` has a measurable univariate response signal."
+    return "Review only if the feature is relevant to the project context."

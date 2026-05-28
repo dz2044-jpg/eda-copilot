@@ -14,3 +14,6 @@ def test_report_builder_includes_required_sections() -> None:
     assert "## Data Quality Findings" in report
     assert "## Feature Ranking" in report
     assert "## Leakage Warnings" in report
+    assert "## Modeling Risk Summary" in report
+    assert "## Artifact Manifest" in report
+    assert "## Run Metadata" in report

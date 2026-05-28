@@ -13,3 +13,6 @@ Use this checklist before completing a tabular EDA skill task.
 - Feature ranking is framed as investigation priority, not causality.
 - Quality checks and leakage warnings are framed as review gates, not final
   modeling decisions.
+- Modeling risk signals are framed as deterministic review aids, not final model
+  approval.
+- Run history and comparison answers use saved evidence packets only.

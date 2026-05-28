@@ -38,10 +38,20 @@ Dataset
 - Quality checks
 - Reference/current comparison
 - Guarded evidence question planner
+- Evidence-only AI summary fallback
+- Modeling risk summary
+- Artifact manifest and run metadata export
+- Run history and evidence-packet comparison
 
 ## Evidence Extensions
 
-The evidence packet now includes `profile_summary`, `quality_checks`, `comparison_summary`, `visual_specs`, and `external_artifacts`.
+The evidence packet now includes `profile_summary`, `quality_checks`,
+`modeling_risk_summary`, `comparison_summary`, `visual_specs`, and
+`external_artifacts`.
 These are additive and keep the original deterministic sections intact.
 
 AI-facing context is sanitized by `eda_copilot.ai.summarizer.build_llm_evidence_context`: row samples and data-dictionary sample values are removed before any optional LLM layer sees the packet.
+
+Exported run folders include `run_metadata.json` and `artifact_manifest.json`.
+Run comparison utilities read saved evidence packets and metadata only; they do
+not read raw source datasets.

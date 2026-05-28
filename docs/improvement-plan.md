@@ -60,8 +60,8 @@ Status: In progress
   - Acceptance gate: skill docs define trigger rules, guardrails, action
     contracts, fallback behavior, and evidence-only AI rules.
 
-- [ ] Phase 2: Strengthen deterministic EDA foundation
-  - Status: In progress
+- [x] Phase 2: Strengthen deterministic EDA foundation
+  - Status: Completed
   - Extend the existing `eda_copilot.eda` modules rather than creating a
     duplicate deterministic tools package.
   - Improve loading, schema inspection, profiling, response analysis, feature
@@ -70,8 +70,8 @@ Status: In progress
   - Acceptance gate: deterministic outputs are JSON-serializable, stable across
     repeated runs, and covered by focused tests.
 
-- [ ] Phase 3: Harden evidence packet and schemas
-  - Status: Not started
+- [x] Phase 3: Harden evidence packet and schemas
+  - Status: Completed
   - Add or formalize schemas for the EDA evidence packet, action inputs, action
     outputs, and artifact manifests.
   - Ensure packet fields map back to deterministic outputs and exclude raw rows
@@ -80,16 +80,16 @@ Status: In progress
     excluded from AI context, and every quantitative AI claim can cite packet
     fields.
 
-- [ ] Phase 4: Standardize artifacts and audit trail
-  - Status: Not started
+- [x] Phase 4: Standardize artifacts and audit trail
+  - Status: Completed
   - Standardize each run folder around input manifest, config snapshot,
     validation report, evidence packet, deterministic reports, AI summaries,
     final report, visual specs, and audit log.
   - Save file hashes and run metadata where available.
   - Acceptance gate: every full run creates a unique reviewable artifact folder.
 
-- [ ] Phase 5: Add first evidence-grounded AI summary action
-  - Status: Not started
+- [x] Phase 5: Add first evidence-grounded AI summary action
+  - Status: Completed
   - Implement one high-quality AI-facing action for `run_full_eda` summary
     generation.
   - Output should separate observed facts, calculated metrics, inferred risks,
@@ -105,8 +105,8 @@ Status: In progress
   - Acceptance gate: each action has a narrow input contract, output contract,
     fallback path, and evidence-use tests or examples.
 
-- [ ] Phase 7: Improve Streamlit as a skill interface
-  - Status: Not started
+- [x] Phase 7: Improve Streamlit as a skill interface
+  - Status: Completed
   - Refine the UI around upload/connect data, response selection, run EDA, review
     deterministic outputs, inspect AI interpretation, and export artifacts.
   - Keep prompts and calculation logic outside the UI layer.
@@ -121,19 +121,19 @@ Status: In progress
   - Acceptance gate: readiness status is explainable, evidence-backed, and does
     not claim final model approval.
 
-- [ ] Phase 9: Add run history and comparison
-  - Status: Not started
+- [x] Phase 9: Add run history and comparison
+  - Status: Completed
   - Support comparing runs such as before/after cleaning, train/test, old/new
     extracts, or current/prior periods.
   - Acceptance gate: comparisons are deterministic and can produce an
     AI-safe comparison evidence packet.
 
-- [ ] Phase 10: Add domain adapters
-  - Status: Not started
+- [ ] Phase 10: Add domain adapters later
+  - Status: Deferred
   - Keep the general tabular EDA skill independent while adding domain-specific
     adapters later.
-  - Candidate adapters: insurance underwriting EDA, actuarial experience study,
-    model performance, fairness testing, and report drafting.
+  - Candidate adapters may be scoped later after the general tabular workflow is
+    stable.
   - Acceptance gate: domain rules extend the shared foundation without mixing
     domain-specific assumptions into generic EDA behavior.
 
@@ -170,46 +170,41 @@ Status: In progress
   - Status: Completed
   - Strengthen existing loading and type/schema inspection behavior.
 
-- [ ] PR 4: Data quality profiling improvements
-  - Status: Not started
+- [x] PR 4: Data quality profiling improvements
+  - Status: Completed
   - Extend structured quality warnings and tests.
 
-- [ ] PR 5: Response variable analysis improvements
-  - Status: Not started
+- [x] PR 5: Response variable analysis improvements
+  - Status: Completed
   - Improve binary/regression response summaries and warnings.
 
-- [ ] PR 6: Feature relationship analysis improvements
-  - Status: Not started
+- [x] PR 6: Feature relationship analysis improvements
+  - Status: Completed
   - Rank and summarize feature-response relationships more deeply.
 
-- [ ] PR 7: Modeling risk detection
-  - Status: Not started
+- [x] PR 7: Modeling risk detection
+  - Status: Completed
   - Expand leakage, drift, sparsity, cardinality, and suspicious predictor checks.
 
-- [ ] PR 8: Evidence packet and artifact manifest hardening
-  - Status: Not started
+- [x] PR 8: Evidence packet and artifact manifest hardening
+  - Status: Completed
   - Add schema validation and stronger artifact manifest conventions.
 
-- [ ] PR 9: First AI summary action
-  - Status: Not started
+- [x] PR 9: First AI summary action
+  - Status: Completed
   - Add evidence-grounded full EDA summary generation.
 
-- [ ] PR 10: Streamlit skill workflow
-  - Status: Not started
+- [x] PR 10: Streamlit skill workflow
+  - Status: Completed
   - Expose the skill-first workflow through a thin Streamlit interface.
 
-- [ ] PR 11: Report export package
-  - Status: Not started
+- [x] PR 11: Report export package
+  - Status: Completed
   - Add reusable report and artifact export bundle.
 
-- [ ] PR 12: Run history and comparison
-  - Status: Not started
+- [x] PR 12: Run history and comparison
+  - Status: Completed
   - Add deterministic run comparison and optional comparison summaries.
-
-- [ ] PR 13: Insurance underwriting EDA adapter
-  - Status: Not started
-  - Add domain-specific underwriting risk and leakage checks using synthetic
-    data tests.
 
 ## Acceptance Gates For Every Phase
 

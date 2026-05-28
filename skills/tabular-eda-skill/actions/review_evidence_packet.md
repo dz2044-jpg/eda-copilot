@@ -15,8 +15,8 @@ preserving the evidence-only AI boundary.
 
 Use packet sections documented in `../references/current_contracts.md`, such as
 `dataset_overview`, `profile_summary`, `quality_checks`, `response_summary`,
-`feature_ranking`, `leakage_warnings`, `drift_summary`, `comparison_summary`,
-`visual_specs`, and `caveats`.
+`feature_ranking`, `leakage_warnings`, `drift_summary`,
+`modeling_risk_summary`, `comparison_summary`, `visual_specs`, and `caveats`.
 
 For AI-facing work, use sanitized evidence context only. In code, this means the
 allowed context should follow `build_llm_evidence_context` behavior: no raw
@@ -27,6 +27,7 @@ rows, no row samples, and no data-dictionary sample values.
 - Observed facts grounded in packet fields.
 - Calculated metrics copied or summarized from deterministic evidence.
 - Risks and caveats clearly labeled as interpretation.
+- Modeling risk signals framed as deterministic review aids, not model approval.
 - Missing evidence or unknowns called out explicitly.
 - Next-step recommendations framed as review actions, not final decisions.
 

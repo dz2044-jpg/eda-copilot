@@ -13,6 +13,7 @@ from eda_copilot.eda.drift import analyze_drift
 from eda_copilot.eda.feature_ranking import build_feature_ranking
 from eda_copilot.eda.leakage import detect_leakage_risks
 from eda_copilot.eda.missingness import analyze_missingness
+from eda_copilot.eda.modeling_risk import build_modeling_risk_summary
 from eda_copilot.eda.overview import build_dataset_overview
 from eda_copilot.eda.profiling import build_profile_summary
 from eda_copilot.eda.quality_checks import build_quality_checks
@@ -74,6 +75,17 @@ def run_eda(
     )
     drift = analyze_drift(working_df, config, type_summary)
     comparison = build_comparison_summary(working_df, config, type_summary)
+    modeling_risk = build_modeling_risk_summary(
+        config,
+        type_summary,
+        missingness,
+        bivariate,
+        feature_ranking,
+        data_quality_warnings,
+        leakage_warnings,
+        drift,
+        response,
+    )
     profile_summary = build_profile_summary(
         working_df,
         config,
@@ -87,11 +99,13 @@ def run_eda(
     quality_checks = build_quality_checks(
         config,
         overview,
+        response,
         missingness,
         bivariate,
         data_quality_warnings,
         leakage_warnings,
         drift,
+        modeling_risk,
     )
     visual_specs = build_visual_specs(
         config,
@@ -116,6 +130,7 @@ def run_eda(
         data_quality_warnings=data_quality_warnings,
         leakage_warnings=leakage_warnings,
         drift_summary=drift,
+        modeling_risk_summary=modeling_risk,
         quality_checks=quality_checks,
         comparison_summary=comparison,
         visual_specs=visual_specs,
@@ -150,6 +165,7 @@ def _build_caveats(config: EDAConfig, response: dict[str, object]) -> list[str]:
         caveats.append("Configured ID, sensitive, and ID-like sample values are redacted in the evidence packet.")
     if config.profile_depth == "minimal":
         caveats.append("Minimal profiling skips correlation matrix generation and text/date deep summaries.")
+    caveats.append("Modeling risk signals are deterministic review aids and do not approve a model for use.")
     return caveats
 
 

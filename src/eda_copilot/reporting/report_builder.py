@@ -17,6 +17,7 @@ def build_markdown_report(evidence_packet: dict[str, Any]) -> str:
     profile = evidence_packet.get("profile_summary", {})
     quality_checks = evidence_packet.get("quality_checks", {})
     comparison = evidence_packet.get("comparison_summary", {})
+    modeling_risk = evidence_packet.get("modeling_risk_summary", {})
     caveats = evidence_packet.get("caveats", [])
 
     lines = [
@@ -29,7 +30,12 @@ def build_markdown_report(evidence_packet: dict[str, Any]) -> str:
         f"- Data quality warnings: {len(quality):,}.",
         f"- Leakage warnings: {len(leakage):,}.",
         f"- Quality gate status: {quality_checks.get('overall_status', 'unavailable')}.",
+        f"- Modeling risk status: {modeling_risk.get('overall_status', 'unavailable')}.",
         _response_summary_line(response),
+        "",
+        "## Run Metadata",
+        "",
+        *_run_metadata_lines(evidence_packet),
         "",
         "## Dataset Overview",
         "",
@@ -68,6 +74,10 @@ def build_markdown_report(evidence_packet: dict[str, Any]) -> str:
         "",
         *_warning_table(leakage, ["severity", "column", "reason", "evidence", "recommended_next_step"]),
         "",
+        "## Modeling Risk Summary",
+        "",
+        *_modeling_risk_lines(modeling_risk),
+        "",
         "## Bivariate Analysis",
         "",
         *_bivariate_lines(bivariate),
@@ -79,6 +89,10 @@ def build_markdown_report(evidence_packet: dict[str, Any]) -> str:
         "## Recommended Next Steps",
         "",
         *_next_steps(quality, leakage, response, quality_checks),
+        "",
+        "## Artifact Manifest",
+        "",
+        *_artifact_manifest_lines(evidence_packet),
         "",
         "## Appendix: Caveats",
         "",
@@ -124,20 +138,21 @@ def _response_section(response: dict[str, Any]) -> list[str]:
             lines.append(f"- Response rate: {response['response_rate']:.2%}")
         if response.get("imbalance_ratio") is not None:
             lines.append(f"- Imbalance ratio: {response['imbalance_ratio']:.2f}")
-        return lines
+        return lines + _response_warning_lines(response)
     if response.get("problem_type") == "regression":
         summary = response.get("target_summary", {})
-        return [
+        lines = [
             f"- Response column: `{response.get('response_column')}`",
             f"- Mean: {summary.get('mean')}",
             f"- Median: {summary.get('median')}",
             f"- Min / max: {summary.get('min')} / {summary.get('max')}",
         ]
+        return lines + _response_warning_lines(response)
     return [
         f"- Response column: `{response.get('response_column')}`",
         f"- Problem type: {response.get('problem_type')}",
         "- MVP does not yet compute multiclass feature-level tests.",
-    ]
+    ] + _response_warning_lines(response)
 
 
 def _warning_table(rows: list[dict[str, Any]], columns: list[str]) -> list[str]:
@@ -164,6 +179,16 @@ def _profile_lines(profile: dict[str, Any]) -> list[str]:
         f"- Redacted columns: {_cell(sensitive_report.get('redacted_columns', []))}.",
         f"- Text summaries: {len(profile.get('text_summary', []))}.",
         f"- Datetime summaries: {len(profile.get('datetime_summary', []))}.",
+    ]
+
+
+def _run_metadata_lines(evidence_packet: dict[str, Any]) -> list[str]:
+    metadata = evidence_packet.get("metadata", {})
+    config = evidence_packet.get("config", {})
+    return [
+        f"- Tool: `{metadata.get('tool_name', 'eda_copilot')}` {metadata.get('tool_version', '')}.",
+        f"- Created at UTC: `{metadata.get('created_at_utc', 'unknown')}`.",
+        f"- Dataset name: `{config.get('dataset_name', 'dataset')}`.",
     ]
 
 
@@ -215,8 +240,8 @@ def _feature_ranking_table(rows: list[dict[str, Any]]) -> list[str]:
     if not rows:
         return ["- Feature ranking is unavailable."]
     lines = [
-        "| Column | Type | Missing % | Signal metric | Signal value | Quality warnings | Leakage warnings |",
-        "| --- | --- | ---: | --- | ---: | --- | --- |",
+        "| Rank | Column | Type | Missing % | Signal metric | Signal value | Direction | Quality penalty | Review reason |",
+        "| ---: | --- | --- | ---: | --- | ---: | --- | ---: | --- |",
     ]
     for row in rows:
         signal_value = row.get("signal_value")
@@ -225,18 +250,76 @@ def _feature_ranking_table(rows: list[dict[str, Any]]) -> list[str]:
             "| "
             + " | ".join(
                 [
+                    str(row.get("rank", "")),
                     f"`{row['column']}`",
                     _cell(row.get("semantic_type")),
                     f"{row.get('missing_percentage', 0.0):.2%}",
                     _cell(row.get("signal_metric")),
                     signal_text,
-                    _cell(", ".join(row.get("data_quality_warnings", []))),
-                    _cell(", ".join(row.get("leakage_warnings", []))),
+                    _cell(row.get("signal_direction")),
+                    f"{float(row.get('quality_penalty') or 0.0):.2f}",
+                    _cell(row.get("recommended_review_reason")),
                 ]
             )
             + " |"
         )
     return lines
+
+
+def _response_warning_lines(response: dict[str, Any]) -> list[str]:
+    warnings = response.get("warnings", [])
+    if not warnings:
+        return ["- Response warnings: none."]
+    lines = ["", "| Severity | Issue | Evidence |", "| --- | --- | --- |"]
+    for warning in warnings[:10]:
+        lines.append(
+            f"| {_cell(warning.get('severity'))} | {_cell(warning.get('issue_type'))} | {_cell(warning.get('evidence'))} |"
+        )
+    return lines
+
+
+def _modeling_risk_lines(modeling_risk: dict[str, Any]) -> list[str]:
+    if not modeling_risk:
+        return ["- Modeling risk summary is unavailable."]
+    summary = modeling_risk.get("summary", {})
+    lines = [
+        f"- Overall status: `{modeling_risk.get('overall_status', 'unknown')}`.",
+        f"- Risk count: {summary.get('total', 0)}.",
+        f"- Risk categories: {_cell(summary.get('by_category', {}))}.",
+    ]
+    risks = modeling_risk.get("risks", [])
+    if not risks:
+        return lines + ["- No deterministic modeling risk signals were generated."]
+    lines += [
+        "| Severity | Category | Column | Evidence | Recommended action |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for risk in risks[:15]:
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    _cell(risk.get("severity")),
+                    _cell(risk.get("category")),
+                    _cell(risk.get("column")),
+                    _cell(risk.get("evidence")),
+                    _cell(risk.get("recommended_action")),
+                ]
+            )
+            + " |"
+        )
+    return lines
+
+
+def _artifact_manifest_lines(evidence_packet: dict[str, Any]) -> list[str]:
+    artifacts = evidence_packet.get("artifacts", [])
+    external = evidence_packet.get("external_artifacts", [])
+    if not artifacts and not external:
+        return ["- `artifact_manifest.json` is generated when artifacts are saved to a run folder."]
+    return [
+        f"- In-packet artifacts: {len(artifacts)}.",
+        f"- External artifacts: {len(external)}.",
+    ]
 
 
 def _bivariate_lines(bivariate: dict[str, Any]) -> list[str]:

@@ -18,9 +18,12 @@ EDA Copilot is a deterministic, response-aware exploratory data analysis tool fo
 - Feature ranking
 - Native profile summary with alert taxonomy and redacted sample policy
 - Quality checks with pass/warn/fail status
+- Deterministic modeling risk summary
 - Reference/current comparison and drift gates
+- Run metadata, artifact manifests, and evidence-only run comparison
 - Saved visual specs and optional visual explorer integration
 - Guarded evidence-only question planning
+- Evidence-only AI summary fallback
 - Markdown report and JSON evidence export
 
 ## Run locally

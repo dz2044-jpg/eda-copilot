@@ -9,11 +9,13 @@ import pandas as pd
 import streamlit as st
 
 from eda_copilot.ai.query_planner import plan_evidence_question
-from eda_copilot.ai.summarizer import deterministic_summary_placeholder
+from eda_copilot.ai.summarizer import build_evidence_summary, build_llm_evidence_context
 from eda_copilot.core.config import EDAConfig, EDAValidationError
 from eda_copilot.core.data_loading import load_tabular_dataset
 from eda_copilot.core.workflow import run_eda
 from eda_copilot.reporting.export import export_run_artifacts
+from eda_copilot.reporting.run_history import compare_run_directories, discover_run_history
+from eda_copilot.reporting.validation import validate_ai_context_sanitized
 from eda_copilot.visualization.gallery import build_plot_gallery
 
 
@@ -52,11 +54,13 @@ def run_app() -> None:
             "Response",
             "Bivariate",
             "Quality",
+            "Modeling Risk",
             "Ranking",
             "Visual Explorer",
             "Ask",
             "AI Summary",
             "Export",
+            "Run History",
         ]
     )
     with tabs[0]:
@@ -74,16 +78,20 @@ def run_app() -> None:
     with tabs[6]:
         _quality_tab(evidence)
     with tabs[7]:
+        _modeling_risk_tab(evidence)
+    with tabs[8]:
         _render_dataframe(evidence.get("feature_ranking", []))
         _plot_if_available(evidence, "feature_ranking")
-    with tabs[8]:
-        _visual_explorer_tab(evidence, df, dataset_name)
     with tabs[9]:
-        _ask_tab(evidence)
+        _visual_explorer_tab(evidence, df, dataset_name)
     with tabs[10]:
-        st.json(deterministic_summary_placeholder(evidence))
+        _ask_tab(evidence)
     with tabs[11]:
+        _ai_summary_tab(evidence)
+    with tabs[12]:
         _export_tab(result.markdown_report, evidence, st.session_state["eda_config"])
+    with tabs[13]:
+        _run_history_tab()
 
 
 def _load_dataset_ui() -> tuple[pd.DataFrame | None, str]:
@@ -239,6 +247,8 @@ def _univariate_tab(evidence: dict[str, Any]) -> None:
 def _response_tab(evidence: dict[str, Any]) -> None:
     response = evidence.get("response_summary", {})
     _plot_if_available(evidence, "target_distribution")
+    st.subheader("Response Warnings")
+    _render_dataframe(response.get("warnings", []))
     st.json(response)
 
 
@@ -263,6 +273,16 @@ def _quality_tab(evidence: dict[str, Any]) -> None:
     _render_dataframe(evidence.get("leakage_warnings", []))
 
 
+def _modeling_risk_tab(evidence: dict[str, Any]) -> None:
+    modeling = evidence.get("modeling_risk_summary", {})
+    col1, col2 = st.columns(2)
+    col1.metric("Risk status", str(modeling.get("overall_status", "unknown")))
+    col2.metric("Risk count", f"{modeling.get('summary', {}).get('total', 0):,}")
+    st.subheader("Risk Signals")
+    _render_dataframe(modeling.get("risks", []))
+    st.caption(str(modeling.get("caveat", "")))
+
+
 def _visual_explorer_tab(evidence: dict[str, Any], df: pd.DataFrame, dataset_name: str) -> None:
     st.subheader("Saved Visual Specs")
     specs = evidence.get("visual_specs", [])
@@ -280,6 +300,15 @@ def _ask_tab(evidence: dict[str, Any]) -> None:
         submitted = st.form_submit_button("Plan answer")
     if submitted and question:
         st.json(plan_evidence_question(question, evidence))
+
+
+def _ai_summary_tab(evidence: dict[str, Any]) -> None:
+    context_errors = validate_ai_context_sanitized(build_llm_evidence_context(evidence))
+    if context_errors:
+        st.error("AI-safe evidence context failed validation.")
+        _render_dataframe([{"error": error} for error in context_errors])
+        return
+    st.json(build_evidence_summary(evidence))
 
 
 def _plot_if_available(evidence: dict[str, Any], plot_key: str) -> None:
@@ -350,10 +379,40 @@ def _export_tab(markdown_report: str, evidence: dict[str, Any], config: EDAConfi
         mime="application/json",
     )
     if st.button("Save artifacts to workspace"):
-        run_dir = export_run_artifacts(evidence, markdown_report, config)
+        run_dir = export_run_artifacts(
+            evidence,
+            markdown_report,
+            config,
+            ai_summary=build_evidence_summary(evidence),
+        )
         st.success(f"Saved artifacts to {run_dir}")
     st.subheader("Report Preview")
     st.markdown(markdown_report)
+
+
+def _run_history_tab() -> None:
+    runs = discover_run_history()
+    st.subheader("Saved Runs")
+    _render_dataframe(runs)
+    available = [run for run in runs if run.get("status") == "available" and run.get("run_dir")]
+    if len(available) < 2:
+        st.info("Save at least two artifact runs to compare evidence packets.")
+        return
+
+    labels = [_run_label(run) for run in available]
+    left_label = st.selectbox("Reference run", labels, index=min(1, len(labels) - 1))
+    right_label = st.selectbox("Current run", labels, index=0)
+    if left_label == right_label:
+        st.info("Choose two different runs to compare.")
+        return
+    left_run = available[labels.index(left_label)]
+    right_run = available[labels.index(right_label)]
+    comparison = compare_run_directories(Path(str(left_run["run_dir"])), Path(str(right_run["run_dir"])))
+    st.json(comparison)
+
+
+def _run_label(run: dict[str, Any]) -> str:
+    return f"{run.get('created_at_utc') or '<unknown>'} | {run.get('dataset_name') or '<dataset>'} | {run.get('run_id') or run.get('run_dir')}"
 
 
 def _sample_dataset() -> pd.DataFrame:
