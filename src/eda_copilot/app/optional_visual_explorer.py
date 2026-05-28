@@ -27,8 +27,11 @@ def render_optional_pygwalker(df: pd.DataFrame, dataset_name: str) -> None:
         return
 
     spec_path = spec_dir / f"{_dataset_key(df, dataset_name)}.json"
-    renderer = _pygwalker_renderer(_dataset_key(df, dataset_name), df, str(spec_path))
-    renderer.explorer()
+    try:
+        renderer = _pygwalker_renderer(_dataset_key(df, dataset_name), df, str(spec_path))
+        renderer.explorer()
+    except Exception as exc:
+        st.error(f"Could not render the optional PyGWalker explorer: {exc}")
 
 
 @st.cache_resource(show_spinner=False)

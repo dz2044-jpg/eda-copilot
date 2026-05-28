@@ -61,6 +61,8 @@ REQUIRED_MANIFEST_FILE_KEYS = {
     "created_at_utc",
 }
 
+BANNED_AI_CONTEXT_KEYS = {"sample_rows", "sample_values", "raw_rows", "row_records", "top_terms"}
+
 
 def validate_evidence_packet(evidence_packet: dict[str, Any]) -> list[str]:
     """Return contract validation errors for an evidence packet."""
@@ -80,18 +82,27 @@ def validate_evidence_packet(evidence_packet: dict[str, Any]) -> list[str]:
 
 
 def validate_ai_context_sanitized(context: dict[str, Any]) -> list[str]:
-    """Return errors if an AI-facing context contains row-level sample fields."""
+    """Return errors if an AI-facing context contains raw/sample fields."""
 
     errors = []
     overview = context.get("dataset_overview")
     if not isinstance(overview, dict):
         return ["AI context dataset_overview must be an object."]
-    if "sample_rows" in overview:
-        errors.append("AI context must not include dataset_overview.sample_rows.")
-    for row in overview.get("data_dictionary", []):
-        if isinstance(row, dict) and "sample_values" in row:
-            column = row.get("column", "<unknown>")
-            errors.append(f"AI context data_dictionary for {column} must not include sample_values.")
+    errors.extend(_raw_field_errors(context, "AI context"))
+    return errors
+
+
+def _raw_field_errors(payload: Any, path: str) -> list[str]:
+    errors = []
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            child_path = f"{path}.{key}"
+            if key in BANNED_AI_CONTEXT_KEYS:
+                errors.append(f"AI context must not include raw/sample field: {child_path}.")
+            errors.extend(_raw_field_errors(value, child_path))
+    elif isinstance(payload, list):
+        for index, item in enumerate(payload):
+            errors.extend(_raw_field_errors(item, f"{path}[{index}]"))
     return errors
 
 

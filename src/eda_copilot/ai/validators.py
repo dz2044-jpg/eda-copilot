@@ -21,7 +21,7 @@ ALLOWED_SUMMARY_EVIDENCE_SECTIONS = {
     "caveats",
 }
 
-RAW_ROW_KEYS = {"sample_rows", "sample_values", "raw_rows", "row_records"}
+RAW_ROW_KEYS = {"sample_rows", "sample_values", "raw_rows", "row_records", "top_terms"}
 
 
 def validate_summary_references(summary: dict[str, Any], evidence_packet: dict[str, Any]) -> list[str]:

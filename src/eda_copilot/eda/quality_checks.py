@@ -17,6 +17,7 @@ def build_quality_checks(
     leakage_warnings: list[dict[str, Any]],
     drift_summary: dict[str, Any],
     modeling_risk_summary: dict[str, Any],
+    comparison_summary: dict[str, Any],
 ) -> dict[str, Any]:
     """Build deterministic pass/fail checks for audit and CI-style review."""
 
@@ -38,6 +39,7 @@ def build_quality_checks(
     checks.extend(_missingness_checks(config, missingness_summary))
     checks.extend(_correlation_checks(config, bivariate_summary))
     checks.extend(_drift_checks(config, drift_summary))
+    checks.extend(_ignored_group_checks(drift_summary, comparison_summary))
     checks.extend(_modeling_risk_checks(modeling_risk_summary))
 
     counts = Counter(check["status"] for check in checks)
@@ -240,6 +242,35 @@ def _drift_checks(config: EDAConfig, drift_summary: dict[str, Any]) -> list[dict
             )
         )
     return checks
+
+
+def _ignored_group_checks(
+    drift_summary: dict[str, Any],
+    comparison_summary: dict[str, Any],
+) -> list[dict[str, Any]]:
+    ignored_groups = drift_summary.get("ignored_groups") or comparison_summary.get("ignored_groups") or []
+    if not ignored_groups:
+        return []
+    group_column = drift_summary.get("group_column") or comparison_summary.get("comparison_column")
+    reference_group = drift_summary.get("baseline_group") or comparison_summary.get("reference_group")
+    current_group = drift_summary.get("comparison_group") or comparison_summary.get("current_group")
+    ignored_text = ", ".join(str(group) for group in ignored_groups)
+    return [
+        _check(
+            check_id="drift.ignored_groups",
+            name="Reference/current comparison ignored extra groups",
+            status="warn",
+            severity="medium",
+            metric_name="ignored_group_count",
+            metric_value=len(ignored_groups),
+            threshold=0,
+            evidence=(
+                f"{group_column} comparison used {reference_group!r} vs {current_group!r} "
+                f"and ignored: {ignored_text}."
+            ),
+            recommended_action="Review whether ignored groups need separate comparison or filtering before modeling.",
+        )
+    ]
 
 
 def _modeling_risk_checks(modeling_risk_summary: dict[str, Any]) -> list[dict[str, Any]]:

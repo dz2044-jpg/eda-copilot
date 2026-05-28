@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 
+BANNED_AI_CONTEXT_KEYS = {"sample_rows", "sample_values", "raw_rows", "row_records", "top_terms"}
+
 ALLOWED_LLM_EVIDENCE_KEYS = [
     "metadata",
     "dataset_overview",
@@ -25,9 +27,12 @@ ALLOWED_LLM_EVIDENCE_KEYS = [
 def build_llm_evidence_context(evidence_packet: dict[str, Any]) -> dict[str, Any]:
     """Return the only context an optional LLM summary is allowed to read."""
 
-    context = {key: evidence_packet.get(key) for key in ALLOWED_LLM_EVIDENCE_KEYS}
+    context = {
+        key: _sanitize_ai_context_value(evidence_packet.get(key))
+        for key in ALLOWED_LLM_EVIDENCE_KEYS
+    }
     if isinstance(context.get("dataset_overview"), dict):
-        context["dataset_overview"] = _sanitized_overview(context["dataset_overview"])
+        context["dataset_overview"]["row_samples_removed_for_ai"] = True
     return context
 
 
@@ -157,26 +162,16 @@ def build_evidence_summary(evidence_packet: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def deterministic_summary_placeholder(evidence_packet: dict[str, Any]) -> dict[str, Any]:
-    """Provide a non-LLM summary while preserving the AI layer contract."""
-
-    summary = build_evidence_summary(evidence_packet)
-    summary["message"] = "AI summary is optional; this deterministic fallback summarizes only approved evidence."
-    return summary
-
-
-def _sanitized_overview(overview: dict[str, Any]) -> dict[str, Any]:
-    sanitized = dict(overview)
-    sanitized.pop("sample_rows", None)
-    data_dictionary = []
-    for row in overview.get("data_dictionary", []):
-        if isinstance(row, dict):
-            clean_row = dict(row)
-            clean_row.pop("sample_values", None)
-            data_dictionary.append(clean_row)
-    sanitized["data_dictionary"] = data_dictionary
-    sanitized["row_samples_removed_for_ai"] = True
-    return sanitized
+def _sanitize_ai_context_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _sanitize_ai_context_value(child)
+            for key, child in value.items()
+            if key not in BANNED_AI_CONTEXT_KEYS
+        }
+    if isinstance(value, list):
+        return [_sanitize_ai_context_value(item) for item in value]
+    return value
 
 
 def _summary_item(

@@ -1,7 +1,12 @@
+import sys
+import types
+
 import pandas as pd
 import streamlit as st
 
-from eda_copilot.app.streamlit_app import _dataset_key, _run_label, _set_loaded_dataset
+from eda_copilot.app.optional_visual_explorer import render_optional_pygwalker
+from eda_copilot.app.streamlit_app import _dataset_key, _result_config_is_stale, _run_label, _set_loaded_dataset
+from eda_copilot.core.config import EDAConfig
 
 
 def test_dataset_key_is_stable_for_same_shape_and_columns() -> None:
@@ -28,6 +33,17 @@ def test_set_loaded_dataset_clears_stale_eda_result_when_data_changes() -> None:
     assert "eda_config" not in st.session_state
 
 
+def test_result_config_is_stale_when_sidebar_config_changes() -> None:
+    st.session_state.clear()
+    original = EDAConfig(response_column="target")
+    changed = EDAConfig(response_column="target", profile_depth="deep")
+    st.session_state["eda_result"] = object()
+    st.session_state["eda_config"] = original
+
+    assert _result_config_is_stale(original) is False
+    assert _result_config_is_stale(changed) is True
+
+
 def test_run_label_includes_metadata_when_available() -> None:
     label = _run_label(
         {
@@ -40,3 +56,21 @@ def test_run_label_includes_metadata_when_available() -> None:
 
     assert "demo" in label
     assert "abc123" in label
+
+
+def test_optional_visual_explorer_reports_renderer_failures(monkeypatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setitem(sys.modules, "pygwalker", types.ModuleType("pygwalker"))
+    monkeypatch.setattr(st, "checkbox", lambda _label: True)
+    errors: list[str] = []
+    monkeypatch.setattr(st, "error", errors.append)
+
+    def broken_renderer(_dataset_key: str, _df: pd.DataFrame, _spec_path: str) -> object:
+        raise RuntimeError("renderer failed")
+
+    monkeypatch.setattr("eda_copilot.app.optional_visual_explorer._pygwalker_renderer", broken_renderer)
+
+    render_optional_pygwalker(pd.DataFrame({"x": [1, 2]}), "demo")
+
+    assert errors
+    assert "renderer failed" in errors[0]

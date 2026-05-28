@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal
+import math
+from numbers import Integral, Real
+from typing import Any, Literal, get_args
 
 import pandas as pd
 
@@ -16,6 +18,10 @@ ProblemType = Literal[
 ]
 ProfileDepth = Literal["minimal", "standard", "deep"]
 SamplePolicy = Literal["redacted", "preview", "none"]
+
+VALID_PROBLEM_TYPES = set(get_args(ProblemType))
+VALID_PROFILE_DEPTHS = set(get_args(ProfileDepth))
+VALID_SAMPLE_POLICIES = set(get_args(SamplePolicy))
 
 
 class EDAValidationError(ValueError):
@@ -110,15 +116,8 @@ def validate_config_against_dataframe(df: pd.DataFrame, config: EDAConfig) -> No
     if len(df) == 0:
         raise EDAValidationError("The dataset is empty. Upload a file with at least one row.")
     _validate_dataframe_column_labels(df)
+    _validate_config_values(config)
     _validate_configured_column_lists(config)
-    if config.profile_depth not in {"minimal", "standard", "deep"}:
-        raise EDAValidationError("profile_depth must be one of: minimal, standard, deep.")
-    if config.sample_policy not in {"redacted", "preview", "none"}:
-        raise EDAValidationError("sample_policy must be one of: redacted, preview, none.")
-    if config.drift_warning_threshold < 0 or config.drift_fail_threshold < 0:
-        raise EDAValidationError("Drift thresholds must be non-negative.")
-    if config.drift_warning_threshold > config.drift_fail_threshold:
-        raise EDAValidationError("drift_warning_threshold must be less than or equal to drift_fail_threshold.")
 
     configured_columns: dict[str, str | tuple[str, ...] | None] = {
         "response_column": config.response_column,
@@ -161,6 +160,59 @@ def _validate_dataframe_column_labels(df: pd.DataFrame) -> None:
         raise EDAValidationError(f"Dataset column names must not be blank. Invalid columns: {joined}.")
 
 
+def _validate_config_values(config: EDAConfig) -> None:
+    _validate_choice("problem_type", config.problem_type, VALID_PROBLEM_TYPES)
+    _validate_choice("profile_depth", config.profile_depth, VALID_PROFILE_DEPTHS)
+    _validate_choice("sample_policy", config.sample_policy, VALID_SAMPLE_POLICIES)
+
+    for label in ("max_categories", "high_cardinality_threshold", "max_correlation_columns"):
+        _validate_positive_integer(label, getattr(config, label))
+
+    for label in (
+        "rare_category_threshold",
+        "high_missingness_threshold",
+        "near_constant_threshold",
+        "high_correlation_threshold",
+        "high_auc_leakage_threshold",
+    ):
+        _validate_probability(label, getattr(config, label))
+
+    warning = _validate_finite_number("drift_warning_threshold", config.drift_warning_threshold)
+    fail = _validate_finite_number("drift_fail_threshold", config.drift_fail_threshold)
+    if warning < 0 or fail < 0:
+        raise EDAValidationError("Drift thresholds must be non-negative.")
+    if warning > fail:
+        raise EDAValidationError("drift_warning_threshold must be less than or equal to drift_fail_threshold.")
+
+
+def _validate_choice(label: str, value: Any, allowed: set[str]) -> None:
+    if value not in allowed:
+        joined = ", ".join(sorted(allowed))
+        raise EDAValidationError(f"{label} must be one of: {joined}.")
+
+
+def _validate_positive_integer(label: str, value: Any) -> None:
+    if isinstance(value, bool) or not isinstance(value, Integral):
+        raise EDAValidationError(f"{label} must be a positive integer.")
+    if int(value) < 1:
+        raise EDAValidationError(f"{label} must be a positive integer.")
+
+
+def _validate_probability(label: str, value: Any) -> None:
+    number = _validate_finite_number(label, value)
+    if number < 0 or number > 1:
+        raise EDAValidationError(f"{label} must be between 0 and 1.")
+
+
+def _validate_finite_number(label: str, value: Any) -> float:
+    if isinstance(value, bool) or not isinstance(value, Real):
+        raise EDAValidationError(f"{label} must be a finite number.")
+    number = float(value)
+    if not math.isfinite(number):
+        raise EDAValidationError(f"{label} must be a finite number.")
+    return number
+
+
 def _validate_configured_column_lists(config: EDAConfig) -> None:
     configured_column_groups = {
         "id_columns": config.id_columns,
@@ -177,3 +229,35 @@ def _validate_configured_column_lists(config: EDAConfig) -> None:
     if duplicate_configured_columns:
         joined = ", ".join(duplicate_configured_columns)
         raise EDAValidationError(f"Configured column lists contain duplicate entries: {joined}.")
+
+    primary_role_groups = {
+        "response_column": (config.response_column,) if config.response_column else (),
+        "id_columns": config.id_columns,
+        "date_columns": config.date_columns,
+        "train_test_column": (config.train_test_column,) if config.train_test_column else (),
+        "segment_columns": config.segment_columns,
+        "sensitive_columns": config.sensitive_columns,
+        "weight_column": (config.weight_column,) if config.weight_column else (),
+    }
+    roles_by_column: dict[str, list[str]] = {}
+    for label, values in primary_role_groups.items():
+        for column in values:
+            roles_by_column.setdefault(column, []).append(label)
+
+    cross_role_duplicates = [
+        f"{column} ({', '.join(labels)})"
+        for column, labels in sorted(roles_by_column.items())
+        if len(labels) > 1
+    ]
+    if cross_role_duplicates:
+        joined = ", ".join(cross_role_duplicates)
+        raise EDAValidationError(f"Configured columns cannot be assigned to multiple primary roles: {joined}.")
+
+    primary_columns = set(roles_by_column)
+    excluded_role_columns = sorted(set(config.exclude_columns) & primary_columns)
+    if excluded_role_columns:
+        joined = ", ".join(excluded_role_columns)
+        raise EDAValidationError(
+            "exclude_columns should only contain extra predictor columns; "
+            f"remove role columns from exclude_columns: {joined}."
+        )

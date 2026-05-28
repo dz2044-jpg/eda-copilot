@@ -340,6 +340,8 @@ def _comparison_lines(comparison: dict[str, Any]) -> list[str]:
         f"- Comparison column: `{comparison.get('comparison_column')}`.",
         f"- Reference/current groups: `{comparison.get('reference_group')}` / `{comparison.get('current_group')}`.",
     ]
+    ignored_groups = comparison.get("ignored_groups") or []
+    lines.append(f"- Ignored groups: {_cell(ignored_groups) if ignored_groups else 'none'}.")
     if not changes:
         return lines + ["- No column-level comparison rows were generated."]
     lines += [

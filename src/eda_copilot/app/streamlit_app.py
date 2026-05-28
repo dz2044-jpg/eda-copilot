@@ -45,6 +45,9 @@ def run_app() -> None:
         return
 
     evidence = result.evidence_packet
+    if _result_config_is_stale(config):
+        st.warning("Displayed results were generated with a different configuration. Run EDA again to refresh.")
+    figures = build_plot_gallery(evidence)
     tabs = st.tabs(
         [
             "Overview",
@@ -68,22 +71,22 @@ def run_app() -> None:
     with tabs[1]:
         _profile_tab(evidence)
     with tabs[2]:
-        _table_and_plot_tab(evidence, "missingness_summary", "columns", "missingness_bar")
+        _table_and_plot_tab(evidence, figures, "missingness_summary", "columns", "missingness_bar")
     with tabs[3]:
         _univariate_tab(evidence)
     with tabs[4]:
-        _response_tab(evidence)
+        _response_tab(evidence, figures)
     with tabs[5]:
-        _bivariate_tab(evidence)
+        _bivariate_tab(evidence, figures)
     with tabs[6]:
-        _quality_tab(evidence)
+        _quality_tab(evidence, figures)
     with tabs[7]:
         _modeling_risk_tab(evidence)
     with tabs[8]:
         _render_dataframe(evidence.get("feature_ranking", []))
-        _plot_if_available(evidence, "feature_ranking")
+        _plot_if_available(figures, "feature_ranking")
     with tabs[9]:
-        _visual_explorer_tab(evidence, df, dataset_name)
+        _visual_explorer_tab(evidence, figures, df, dataset_name)
     with tabs[10]:
         _ask_tab(evidence)
     with tabs[11]:
@@ -185,6 +188,10 @@ def _default_response_column(columns: list[str]) -> str:
     return "<none>"
 
 
+def _result_config_is_stale(current_config: EDAConfig) -> bool:
+    return "eda_result" in st.session_state and st.session_state.get("eda_config") != current_config
+
+
 def _overview_tab(evidence: dict[str, Any]) -> None:
     overview = evidence["dataset_overview"]
     col1, col2, col3, col4 = st.columns(4)
@@ -237,8 +244,14 @@ def _profile_tab(evidence: dict[str, Any]) -> None:
     _render_dataframe(profile.get("datetime_summary", []))
 
 
-def _table_and_plot_tab(evidence: dict[str, Any], section: str, table_key: str, plot_key: str) -> None:
-    _plot_if_available(evidence, plot_key)
+def _table_and_plot_tab(
+    evidence: dict[str, Any],
+    figures: dict[str, Any],
+    section: str,
+    table_key: str,
+    plot_key: str,
+) -> None:
+    _plot_if_available(figures, plot_key)
     _render_dataframe(evidence.get(section, {}).get(table_key, []))
 
 
@@ -252,17 +265,17 @@ def _univariate_tab(evidence: dict[str, Any]) -> None:
     _render_dataframe(univariate.get("datetime", []))
 
 
-def _response_tab(evidence: dict[str, Any]) -> None:
+def _response_tab(evidence: dict[str, Any], figures: dict[str, Any]) -> None:
     response = evidence.get("response_summary", {})
-    _plot_if_available(evidence, "target_distribution")
+    _plot_if_available(figures, "target_distribution")
     st.subheader("Response Warnings")
     _render_dataframe(response.get("warnings", []))
     st.json(response)
 
 
-def _bivariate_tab(evidence: dict[str, Any]) -> None:
-    _plot_if_available(evidence, "correlation_heatmap")
-    _plot_if_available(evidence, "drift_shift_bar")
+def _bivariate_tab(evidence: dict[str, Any], figures: dict[str, Any]) -> None:
+    _plot_if_available(figures, "correlation_heatmap")
+    _plot_if_available(figures, "drift_shift_bar")
     st.subheader("High Correlations")
     _render_dataframe(evidence.get("bivariate_summary", {}).get("high_correlation_pairs", []))
     st.subheader("Drift")
@@ -271,8 +284,8 @@ def _bivariate_tab(evidence: dict[str, Any]) -> None:
     st.json(evidence.get("comparison_summary", {}))
 
 
-def _quality_tab(evidence: dict[str, Any]) -> None:
-    _plot_if_available(evidence, "quality_check_status")
+def _quality_tab(evidence: dict[str, Any], figures: dict[str, Any]) -> None:
+    _plot_if_available(figures, "quality_check_status")
     st.subheader("Quality Checks")
     _render_dataframe(evidence.get("quality_checks", {}).get("checks", []))
     st.subheader("Data Quality Warnings")
@@ -291,11 +304,15 @@ def _modeling_risk_tab(evidence: dict[str, Any]) -> None:
     st.caption(str(modeling.get("caveat", "")))
 
 
-def _visual_explorer_tab(evidence: dict[str, Any], df: pd.DataFrame, dataset_name: str) -> None:
+def _visual_explorer_tab(
+    evidence: dict[str, Any],
+    figures: dict[str, Any],
+    df: pd.DataFrame,
+    dataset_name: str,
+) -> None:
     st.subheader("Saved Visual Specs")
     specs = evidence.get("visual_specs", [])
     _render_dataframe(specs)
-    figures = build_plot_gallery(evidence)
     if figures:
         selected = st.selectbox("Chart", sorted(figures.keys()))
         st.plotly_chart(figures[selected], width="stretch", key=f"visual_{selected}")
@@ -319,8 +336,7 @@ def _ai_summary_tab(evidence: dict[str, Any]) -> None:
     st.json(build_evidence_summary(evidence))
 
 
-def _plot_if_available(evidence: dict[str, Any], plot_key: str) -> None:
-    figures = build_plot_gallery(evidence)
+def _plot_if_available(figures: dict[str, Any], plot_key: str) -> None:
     figure = figures.get(plot_key)
     if figure is not None:
         st.plotly_chart(figure, width="stretch", key=f"plot_{plot_key}")

@@ -27,7 +27,7 @@ def build_visual_specs(
                 purpose="Prioritize columns with missingness review needs.",
             )
         )
-    if response_summary.get("available"):
+    if response_summary.get("available") and response_summary.get("problem_type") == "binary_classification":
         specs.append(
             _spec(
                 spec_id="target_distribution",

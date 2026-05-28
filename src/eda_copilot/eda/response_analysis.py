@@ -8,8 +8,8 @@ from pandas.api import types as pdt
 from scipy import stats
 from sklearn.metrics import roc_auc_score
 
-from eda_copilot.core.config import EDAConfig, ProblemType
-from eda_copilot.eda.type_inference import feature_profiles
+from eda_copilot.core.config import EDAConfig, EDAValidationError, ProblemType, VALID_PROBLEM_TYPES
+from eda_copilot.eda.type_inference import NUMERIC_PARSE_CANDIDATE_RATE, feature_profiles, profiles_by_name
 from eda_copilot.utils.serialization import to_jsonable
 
 
@@ -25,7 +25,7 @@ def analyze_response(
 ) -> dict[str, Any]:
     """Analyze the response variable and deterministic feature relationships."""
 
-    problem_type = infer_problem_type(df, config)
+    problem_type = infer_problem_type(df, config, type_summary)
     if problem_type == "unsupervised" or not config.response_column:
         return {
             "problem_type": "unsupervised",
@@ -41,9 +41,16 @@ def analyze_response(
     return _multiclass_response_analysis(target, problem_type)
 
 
-def infer_problem_type(df: pd.DataFrame, config: EDAConfig) -> ProblemType:
+def infer_problem_type(
+    df: pd.DataFrame,
+    config: EDAConfig,
+    type_summary: dict[str, Any] | None = None,
+) -> ProblemType:
     """Infer problem type from configuration and response values."""
 
+    if config.problem_type not in VALID_PROBLEM_TYPES:
+        joined = ", ".join(sorted(VALID_PROBLEM_TYPES))
+        raise EDAValidationError(f"problem_type must be one of: {joined}.")
     if config.problem_type != "auto":
         return config.problem_type
     if not config.response_column or config.response_column not in df.columns:
@@ -56,6 +63,8 @@ def infer_problem_type(df: pd.DataFrame, config: EDAConfig) -> ProblemType:
     if unique_count == 2:
         return "binary_classification"
     if pdt.is_numeric_dtype(target) and unique_count > 10:
+        return "regression"
+    if _is_numeric_parseable_response(type_summary, config.response_column) and unique_count > 10:
         return "regression"
     return "multiclass_classification"
 
@@ -299,6 +308,9 @@ def _regression_response_analysis(
     numeric_target = pd.to_numeric(target, errors="coerce")
     target_summary = _regression_target_summary(numeric_target, target)
     warnings = _base_response_warnings(target, config.response_column)
+    inferred_warning = _numeric_string_regression_warning(config, type_summary)
+    if inferred_warning is not None:
+        warnings.append(inferred_warning)
     if int(target_summary["count"]) == 0:
         warnings.append(
             _response_warning(
@@ -383,6 +395,41 @@ def _regression_response_analysis(
             "warnings": warnings,
             "feature_relationships": relationships,
         }
+    )
+
+
+def _is_numeric_parseable_response(
+    type_summary: dict[str, Any] | None,
+    response_column: str | None,
+) -> bool:
+    if not type_summary or not response_column:
+        return False
+    profile = profiles_by_name(type_summary).get(response_column)
+    if not profile:
+        return False
+    rate = profile.get("numeric_parse_rate")
+    if rate is None or float(rate) < NUMERIC_PARSE_CANDIDATE_RATE:
+        return False
+    return profile.get("semantic_type") not in {"numeric_continuous", "numeric_discrete", "boolean", "binary", "datetime"}
+
+
+def _numeric_string_regression_warning(
+    config: EDAConfig,
+    type_summary: dict[str, Any],
+) -> dict[str, Any] | None:
+    if config.problem_type != "auto" or not _is_numeric_parseable_response(type_summary, config.response_column):
+        return None
+    profile = profiles_by_name(type_summary).get(str(config.response_column))
+    rate = float(profile.get("numeric_parse_rate")) if profile and profile.get("numeric_parse_rate") is not None else 0.0
+    return _response_warning(
+        issue_type="numeric_string_response_inferred_as_regression",
+        severity="medium",
+        evidence=f"Response column was inferred as regression from numeric-like string values with {rate:.1%} parse rate.",
+        recommended_action="Confirm the response should be treated as numeric and fix unparseable values before modeling.",
+        metric_name="numeric_parse_rate",
+        metric_value=rate,
+        threshold=NUMERIC_PARSE_CANDIDATE_RATE,
+        response_column=config.response_column,
     )
 
 

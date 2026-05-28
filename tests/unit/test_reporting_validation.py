@@ -29,13 +29,15 @@ def test_validate_ai_context_sanitized_rejects_row_samples() -> None:
         "dataset_overview": {
             "sample_rows": [{"x": 1}],
             "data_dictionary": [{"column": "x", "sample_values": [1]}],
-        }
+        },
+        "profile_summary": {"text_summary": [{"column": "x", "top_terms": [{"term": "secret"}]}]},
     }
 
     errors = validate_ai_context_sanitized(context)
 
     assert "dataset_overview.sample_rows" in errors[0]
     assert any("sample_values" in error for error in errors)
+    assert any("top_terms" in error for error in errors)
 
 
 def test_validate_artifact_manifest_checks_required_fields(tmp_path) -> None:

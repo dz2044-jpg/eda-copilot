@@ -86,4 +86,5 @@ When export is enabled, expect these names in the run folder:
 
 For AI-facing review, use sanitized evidence only. Raw rows, row samples,
 configured ID values, sensitive row-level values, and data-dictionary sample
-values must stay out of AI context.
+values must stay out of AI context. Sanitization is recursive and also removes
+raw row fields and deep text `top_terms`.

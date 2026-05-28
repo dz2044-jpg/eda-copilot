@@ -1,6 +1,7 @@
 import pandas as pd
+import pytest
 
-from eda_copilot.core.config import EDAConfig
+from eda_copilot.core.config import EDAConfig, EDAValidationError
 from eda_copilot.eda.response_analysis import analyze_response
 from eda_copilot.eda.type_inference import infer_column_types
 
@@ -93,3 +94,72 @@ def test_regression_response_warns_on_partially_unparseable_values() -> None:
     assert result["target_summary"]["count"] == 3
     assert result["target_summary"]["parse_failure_count"] == 1
     assert "unparseable_regression_response_values" in issue_types
+
+
+def test_auto_infers_regression_for_numeric_like_string_target() -> None:
+    df = pd.DataFrame(
+        {
+            "x": list(range(20)),
+            "target": [f"{value}.5" for value in range(20)],
+        }
+    )
+    config = EDAConfig(response_column="target")
+    types = infer_column_types(df, config)
+
+    result = analyze_response(df, config, types)
+    issue_types = {warning["issue_type"] for warning in result["warnings"]}
+
+    assert result["available"] is True
+    assert result["problem_type"] == "regression"
+    assert result["target_summary"]["count"] == 20
+    assert "numeric_string_response_inferred_as_regression" in issue_types
+
+
+def test_auto_numeric_string_regression_keeps_parse_failure_warning() -> None:
+    df = pd.DataFrame(
+        {
+            "x": list(range(21)),
+            "target": [str(value) for value in range(20)] + ["bad"],
+        }
+    )
+    config = EDAConfig(response_column="target")
+    types = infer_column_types(df, config)
+
+    result = analyze_response(df, config, types)
+    issue_types = {warning["issue_type"] for warning in result["warnings"]}
+
+    assert result["problem_type"] == "regression"
+    assert result["target_summary"]["parse_failure_count"] == 1
+    assert "numeric_string_response_inferred_as_regression" in issue_types
+    assert "unparseable_regression_response_values" in issue_types
+
+
+def test_auto_all_missing_response_is_unsupervised() -> None:
+    df = pd.DataFrame({"x": [1, 2, 3], "target": [None, None, None]})
+    config = EDAConfig(response_column="target")
+    types = infer_column_types(df, config)
+
+    result = analyze_response(df, config, types)
+
+    assert result["available"] is False
+    assert result["problem_type"] == "unsupervised"
+
+
+def test_low_cardinality_numeric_response_stays_classification() -> None:
+    df = pd.DataFrame({"x": [1, 2, 3, 4, 5, 6], "target": [1, 2, 3, 1, 2, 3]})
+    config = EDAConfig(response_column="target")
+    types = infer_column_types(df, config)
+
+    result = analyze_response(df, config, types)
+
+    assert result["available"] is True
+    assert result["problem_type"] == "multiclass_classification"
+
+
+def test_unknown_problem_type_is_rejected_before_multiclass_fallback() -> None:
+    df = pd.DataFrame({"x": [1, 2, 3], "target": [0, 1, 2]})
+    config = EDAConfig(response_column="target", problem_type="typo")  # type: ignore[arg-type]
+    types = infer_column_types(df, config)
+
+    with pytest.raises(EDAValidationError, match="problem_type must be one of"):
+        analyze_response(df, config, types)

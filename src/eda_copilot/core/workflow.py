@@ -106,6 +106,7 @@ def run_eda(
         leakage_warnings,
         drift,
         modeling_risk,
+        comparison,
     )
     visual_specs = build_visual_specs(
         config,

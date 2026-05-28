@@ -90,8 +90,8 @@ and should not be treated as a stable contract.
 AI-facing features must consume evidence-only context. Raw rows, row samples,
 configured ID values, sensitive row-level values, and data-dictionary sample
 values must not be sent to optional AI interpretation layers. The helper
-`build_llm_evidence_context` removes row samples and data-dictionary sample
-values from the evidence context.
+`build_llm_evidence_context` recursively removes row samples, sample values,
+raw row fields, and deep text terms from the evidence context.
 
 ## Known Limitations
 

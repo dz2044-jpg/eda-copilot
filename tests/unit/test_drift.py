@@ -53,3 +53,10 @@ def test_drift_prefers_train_test_order_and_reports_ignored_groups() -> None:
     assert comparison["reference_group"] == "train"
     assert comparison["current_group"] == "test"
     assert comparison["ignored_groups"] == ["holdout"]
+
+    checks = result.evidence_packet["quality_checks"]["checks"]
+    ignored_group_checks = [check for check in checks if check["check_id"] == "drift.ignored_groups"]
+    assert ignored_group_checks
+    assert ignored_group_checks[0]["status"] == "warn"
+    assert "holdout" in ignored_group_checks[0]["evidence"]
+    assert "- Ignored groups: ['holdout']." in result.markdown_report
