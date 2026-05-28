@@ -12,14 +12,6 @@ from eda_copilot.utils.serialization import to_jsonable
 
 
 NUMERIC_TYPES = {"numeric_continuous", "numeric_discrete", "binary"}
-CATEGORICAL_TYPES = {
-    "categorical_low_cardinality",
-    "categorical_high_cardinality",
-    "boolean",
-    "text",
-    "near_constant",
-    "constant",
-}
 
 
 def analyze_univariate(

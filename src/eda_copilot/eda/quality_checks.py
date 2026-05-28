@@ -49,6 +49,7 @@ def build_quality_checks(
                 "pass": int(counts.get("pass", 0)),
                 "warn": int(counts.get("warn", 0)),
                 "fail": int(counts.get("fail", 0)),
+                "not_applicable": int(counts.get("not_applicable", 0)),
                 "total": len(checks),
             },
             "checks": checks,
@@ -191,7 +192,7 @@ def _drift_checks(config: EDAConfig, drift_summary: dict[str, Any]) -> list[dict
             _check(
                 check_id="drift.available",
                 name="Reference/current drift comparison configured",
-                status="warn",
+                status="not_applicable",
                 severity="low",
                 metric_name="comparison_groups",
                 metric_value=0,

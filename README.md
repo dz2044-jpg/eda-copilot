@@ -47,10 +47,10 @@ uv run pytest
 - Reports separate facts, metrics, inferred interpretation, caveats, and next steps.
 - Row samples are removed from AI context, and configured ID/sensitive samples are redacted by default.
 
-Optional integrations can be enabled later with:
+Optional integrations are auto-detected by the UI when installed locally. They
+are not part of the base install; add them intentionally when you are ready to
+manage the extra dependency surface:
 
 ```bash
-uv add --optional visual pygwalker
-uv add --optional profiling fg-data-profiling
-uv add --optional monitoring evidently
+uv add pygwalker
 ```

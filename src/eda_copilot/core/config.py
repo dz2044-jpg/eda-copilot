@@ -72,13 +72,25 @@ class EDAConfig:
         return asdict(self)
 
     def analysis_exclusions(self) -> set[str]:
-        """Return columns excluded from predictor-level calculations."""
+        """Return columns excluded from predictor-level calculations.
+
+        These columns can still appear in dataset-level profiling, univariate
+        summaries, and grouped diagnostics. They are excluded from feature-like
+        calculations such as response relationships, bivariate correlations,
+        feature ranking, and modeling-risk predictor review.
+        """
 
         excluded = set(self.exclude_columns)
+        excluded.update(self.id_columns)
+        excluded.update(self.date_columns)
+        excluded.update(self.segment_columns)
+        excluded.update(self.sensitive_columns)
         if self.response_column:
             excluded.add(self.response_column)
         if self.weight_column:
             excluded.add(self.weight_column)
+        if self.train_test_column:
+            excluded.add(self.train_test_column)
         return excluded
 
 

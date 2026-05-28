@@ -41,6 +41,17 @@ def test_quality_checks_pass_missingness_gate_when_clean() -> None:
     assert missingness_check["status"] == "pass"
 
 
+def test_quality_checks_mark_unconfigured_drift_not_applicable() -> None:
+    df = pd.DataFrame({"x": [1, 2, 3, 4], "target": [0, 0, 1, 1]})
+
+    result = run_eda(df, EDAConfig(response_column="target"))
+    checks = result.evidence_packet["quality_checks"]["checks"]
+
+    drift_check = [check for check in checks if check["check_id"] == "drift.available"][0]
+    assert drift_check["status"] == "not_applicable"
+    assert result.evidence_packet["quality_checks"]["summary"]["not_applicable"] == 1
+
+
 def test_data_quality_warnings_are_structured_and_schema_aware() -> None:
     df = pd.DataFrame(
         {

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -10,6 +9,7 @@ import streamlit as st
 
 from eda_copilot.ai.query_planner import plan_evidence_question
 from eda_copilot.ai.summarizer import build_evidence_summary, build_llm_evidence_context
+from eda_copilot.app.optional_visual_explorer import _dataset_key, render_optional_pygwalker
 from eda_copilot.core.config import EDAConfig, EDAValidationError
 from eda_copilot.core.data_loading import load_tabular_dataset
 from eda_copilot.core.workflow import run_eda
@@ -97,21 +97,29 @@ def run_app() -> None:
 def _load_dataset_ui() -> tuple[pd.DataFrame | None, str]:
     uploaded = st.sidebar.file_uploader("Dataset", type=["csv", "parquet"])
     if st.sidebar.button("Load sample dataset"):
-        st.session_state["loaded_df"] = _sample_dataset()
-        st.session_state["loaded_dataset_name"] = "sample_credit"
+        _set_loaded_dataset(_sample_dataset(), "sample_credit")
     if uploaded is not None:
         try:
             loaded = load_tabular_dataset(uploaded, uploaded.name)
         except EDAValidationError as exc:
             st.sidebar.error(str(exc))
             return None, "dataset"
-        st.session_state["loaded_df"] = loaded.dataframe
-        st.session_state["loaded_dataset_name"] = loaded.dataset_name
+        _set_loaded_dataset(loaded.dataframe, loaded.dataset_name)
     if "loaded_df" not in st.session_state:
         return None, "dataset"
     df = st.session_state["loaded_df"]
     st.sidebar.caption(f"Loaded {len(df):,} rows x {len(df.columns):,} columns")
     return df, st.session_state.get("loaded_dataset_name", "dataset")
+
+
+def _set_loaded_dataset(df: pd.DataFrame, dataset_name: str) -> None:
+    dataset_key = _dataset_key(df, dataset_name)
+    if st.session_state.get("loaded_dataset_key") != dataset_key:
+        st.session_state.pop("eda_result", None)
+        st.session_state.pop("eda_config", None)
+    st.session_state["loaded_df"] = df
+    st.session_state["loaded_dataset_name"] = dataset_name
+    st.session_state["loaded_dataset_key"] = dataset_key
 
 
 def _configuration_ui(df: pd.DataFrame, dataset_name: str) -> EDAConfig:
@@ -291,7 +299,7 @@ def _visual_explorer_tab(evidence: dict[str, Any], df: pd.DataFrame, dataset_nam
     if figures:
         selected = st.selectbox("Chart", sorted(figures.keys()))
         st.plotly_chart(figures[selected], width="stretch", key=f"visual_{selected}")
-    _render_optional_pygwalker(df, dataset_name)
+    render_optional_pygwalker(df, dataset_name)
 
 
 def _ask_tab(evidence: dict[str, Any]) -> None:
@@ -316,36 +324,6 @@ def _plot_if_available(evidence: dict[str, Any], plot_key: str) -> None:
     figure = figures.get(plot_key)
     if figure is not None:
         st.plotly_chart(figure, width="stretch", key=f"plot_{plot_key}")
-
-
-def _render_optional_pygwalker(df: pd.DataFrame, dataset_name: str) -> None:
-    try:
-        import pygwalker  # noqa: F401
-    except ImportError:
-        st.info("Optional PyGWalker explorer is not installed.")
-        return
-
-    if not st.checkbox("Open PyGWalker explorer"):
-        return
-
-    spec_dir = Path("artifacts/runs/visual_specs")
-    spec_dir.mkdir(parents=True, exist_ok=True)
-    spec_path = spec_dir / f"{_dataset_key(df, dataset_name)}.json"
-    renderer = _pygwalker_renderer(_dataset_key(df, dataset_name), df, str(spec_path))
-    renderer.explorer()
-
-
-@st.cache_resource(show_spinner=False)
-def _pygwalker_renderer(dataset_key: str, _df: pd.DataFrame, spec_path: str):
-    from pygwalker.api.streamlit import StreamlitRenderer
-
-    return StreamlitRenderer(_df, spec=spec_path, spec_io_mode="rw")
-
-
-def _dataset_key(df: pd.DataFrame, dataset_name: str) -> str:
-    columns = "_".join(str(column) for column in df.columns[:20])
-    digest = hashlib.sha256(columns.encode("utf-8")).hexdigest()[:12]
-    return f"{dataset_name}_{len(df)}x{len(df.columns)}_{digest}"
 
 
 def _render_dataframe(records: Any) -> None:
@@ -379,19 +357,27 @@ def _export_tab(markdown_report: str, evidence: dict[str, Any], config: EDAConfi
         mime="application/json",
     )
     if st.button("Save artifacts to workspace"):
-        run_dir = export_run_artifacts(
-            evidence,
-            markdown_report,
-            config,
-            ai_summary=build_evidence_summary(evidence),
-        )
-        st.success(f"Saved artifacts to {run_dir}")
+        try:
+            run_dir = export_run_artifacts(
+                evidence,
+                markdown_report,
+                config,
+                ai_summary=build_evidence_summary(evidence),
+            )
+        except OSError as exc:
+            st.error(f"Could not save artifacts to the workspace: {exc}")
+        else:
+            st.success(f"Saved artifacts to {run_dir}")
     st.subheader("Report Preview")
     st.markdown(markdown_report)
 
 
 def _run_history_tab() -> None:
-    runs = discover_run_history()
+    try:
+        runs = discover_run_history()
+    except OSError as exc:
+        st.error(f"Could not read saved runs: {exc}")
+        return
     st.subheader("Saved Runs")
     _render_dataframe(runs)
     available = [run for run in runs if run.get("status") == "available" and run.get("run_dir")]
@@ -407,7 +393,11 @@ def _run_history_tab() -> None:
         return
     left_run = available[labels.index(left_label)]
     right_run = available[labels.index(right_label)]
-    comparison = compare_run_directories(Path(str(left_run["run_dir"])), Path(str(right_run["run_dir"])))
+    try:
+        comparison = compare_run_directories(Path(str(left_run["run_dir"])), Path(str(right_run["run_dir"])))
+    except (OSError, json.JSONDecodeError) as exc:
+        st.error(f"Could not compare selected runs: {exc}")
+        return
     st.json(comparison)
 
 

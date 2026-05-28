@@ -64,3 +64,32 @@ def test_regression_response_summary_flags_outliers_and_missing_values() -> None
     assert result["target_summary"]["iqr_outlier_count"] == 1
     assert "missing_response_values" in issue_types
     assert "regression_response_outliers" in issue_types
+
+
+def test_forced_regression_with_non_numeric_target_is_unavailable() -> None:
+    df = pd.DataFrame({"x": [1, 2, 3], "target": ["low", "medium", "high"]})
+    config = EDAConfig(response_column="target", problem_type="regression")
+    types = infer_column_types(df, config)
+
+    result = analyze_response(df, config, types)
+    issue_types = {warning["issue_type"] for warning in result["warnings"]}
+
+    assert result["available"] is False
+    assert result["target_summary"]["count"] == 0
+    assert result["target_summary"]["parse_failure_count"] == 3
+    assert "unusable_regression_response" in issue_types
+    assert result["feature_relationships"] == []
+
+
+def test_regression_response_warns_on_partially_unparseable_values() -> None:
+    df = pd.DataFrame({"x": [1, 2, 3, 4], "target": ["1.0", "2.0", "bad", "4.0"]})
+    config = EDAConfig(response_column="target", problem_type="regression")
+    types = infer_column_types(df, config)
+
+    result = analyze_response(df, config, types)
+    issue_types = {warning["issue_type"] for warning in result["warnings"]}
+
+    assert result["available"] is True
+    assert result["target_summary"]["count"] == 3
+    assert result["target_summary"]["parse_failure_count"] == 1
+    assert "unparseable_regression_response_values" in issue_types

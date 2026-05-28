@@ -33,3 +33,27 @@ def test_validate_config_rejects_duplicate_configured_columns() -> None:
 
     with pytest.raises(EDAValidationError, match="duplicate entries"):
         validate_config_against_dataframe(df, config)
+
+
+def test_analysis_exclusions_include_non_predictor_roles() -> None:
+    config = EDAConfig(
+        response_column="target",
+        id_columns=("application_id",),
+        date_columns=("as_of_date",),
+        train_test_column="split",
+        segment_columns=("region",),
+        sensitive_columns=("gender",),
+        weight_column="weight",
+        exclude_columns=("manual_exclude",),
+    )
+
+    assert config.analysis_exclusions() == {
+        "application_id",
+        "as_of_date",
+        "gender",
+        "manual_exclude",
+        "region",
+        "split",
+        "target",
+        "weight",
+    }

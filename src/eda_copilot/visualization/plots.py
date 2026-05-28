@@ -87,7 +87,7 @@ def quality_check_status_bar(quality_checks: dict[str, Any]):
     frame = pd.DataFrame(
         [
             {"status": status, "count": int(summary.get(status, 0))}
-            for status in ["pass", "warn", "fail"]
+            for status in ["pass", "warn", "fail", "not_applicable"]
         ]
     )
     if frame["count"].sum() == 0:

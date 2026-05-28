@@ -7,6 +7,7 @@ import pandas as pd
 from pandas.api import types as pdt
 
 from eda_copilot.core.config import EDAConfig
+from eda_copilot.eda.grouping import ignored_groups, normalized_group_values, reference_current_groups
 from eda_copilot.eda.type_inference import feature_profiles
 
 
@@ -21,16 +22,26 @@ def analyze_drift(
     if not group_column or group_column not in df.columns:
         return {"available": False, "reason": "No train/test or segment column selected."}
 
-    group_counts = df[group_column].astype("object").where(df[group_column].notna(), "<MISSING>").value_counts()
-    groups = group_counts.index.tolist()
-    if len(groups) < 2:
+    group_values = normalized_group_values(df[group_column])
+    group_counts = group_values.value_counts(dropna=False)
+    if len(group_counts) < 2:
         return {"available": False, "reason": "Selected comparison column has fewer than two groups."}
 
-    baseline = groups[0]
-    comparison = groups[1]
-    mask_base = df[group_column] == baseline
-    mask_comp = df[group_column] == comparison
+    baseline, comparison = reference_current_groups(group_counts)
+    mask_base = group_values == baseline
+    mask_comp = group_values == comparison
+    if not bool(mask_base.any()) or not bool(mask_comp.any()):
+        return {
+            "available": False,
+            "reason": "Selected comparison groups do not have usable rows after grouping missing values.",
+            "group_column": group_column,
+            "baseline_group": baseline,
+            "comparison_group": comparison,
+            "row_count_by_group": {str(key): int(value) for key, value in group_counts.items()},
+        }
+
     shifted_features = []
+    skipped_features = []
     for profile in feature_profiles(type_summary, config):
         column = profile["name"]
         if column == group_column or column not in df.columns:
@@ -44,6 +55,13 @@ def analyze_drift(
                         "metric": "standardized_mean_difference",
                         "value": smd,
                         "status": _drift_status(smd, config),
+                    }
+                )
+            else:
+                skipped_features.append(
+                    {
+                        "column": column,
+                        "reason": "Insufficient non-missing numeric values or zero pooled variance.",
                     }
                 )
         else:
@@ -72,7 +90,9 @@ def analyze_drift(
         "warning_threshold": config.drift_warning_threshold,
         "fail_threshold": config.drift_fail_threshold,
         "row_count_by_group": {str(key): int(value) for key, value in group_counts.items()},
+        "ignored_groups": [str(group) for group in ignored_groups(group_counts, (baseline, comparison))],
         "top_shifted_features": shifted_features[:25],
+        "skipped_features": skipped_features[:25],
     }
 
 

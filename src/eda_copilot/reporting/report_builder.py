@@ -231,7 +231,7 @@ def _top_missingness_lines(missing: dict[str, Any]) -> list[str]:
     lines = ["| Column | Missing % | Missing count |", "| --- | ---: | ---: |"]
     for item in columns:
         lines.append(
-            f"| `{item['column']}` | {item['missing_percentage']:.2%} | {item['missing_count']:,} |"
+            f"| {_code_cell(item['column'])} | {item['missing_percentage']:.2%} | {item['missing_count']:,} |"
         )
     return lines
 
@@ -251,7 +251,7 @@ def _feature_ranking_table(rows: list[dict[str, Any]]) -> list[str]:
             + " | ".join(
                 [
                     str(row.get("rank", "")),
-                    f"`{row['column']}`",
+                    _code_cell(row["column"]),
                     _cell(row.get("semantic_type")),
                     f"{row.get('missing_percentage', 0.0):.2%}",
                     _cell(row.get("signal_metric")),
@@ -328,7 +328,7 @@ def _bivariate_lines(bivariate: dict[str, Any]) -> list[str]:
         return ["- No high numeric correlations were detected at the configured threshold."]
     lines = ["| Left | Right | Correlation |", "| --- | --- | ---: |"]
     for pair in pairs[:20]:
-        lines.append(f"| `{pair['left']}` | `{pair['right']}` | {pair['correlation']:.4f} |")
+        lines.append(f"| {_code_cell(pair['left'])} | {_code_cell(pair['right'])} | {pair['correlation']:.4f} |")
     return lines
 
 
@@ -348,7 +348,7 @@ def _comparison_lines(comparison: dict[str, Any]) -> list[str]:
     ]
     for row in changes[:15]:
         lines.append(
-            f"| `{row.get('column')}` | {_cell(row.get('comparison_metric'))} | "
+            f"| {_code_cell(row.get('column'))} | {_cell(row.get('comparison_metric'))} | "
             f"{float(row.get('missing_percentage_delta', 0.0)):.2%} | "
             f"{float(row.get('change_score') or 0.0):.4f} |"
         )
@@ -379,3 +379,13 @@ def _cell(value: Any) -> str:
         return ""
     text = str(value).replace("|", "\\|").replace("\n", " ")
     return text
+
+
+def _code_cell(value: Any) -> str:
+    text = _cell(value)
+    if not text:
+        return ""
+    delimiter = "`"
+    while delimiter in text:
+        delimiter += "`"
+    return f"{delimiter}{text}{delimiter}"

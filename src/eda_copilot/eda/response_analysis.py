@@ -299,6 +299,30 @@ def _regression_response_analysis(
     numeric_target = pd.to_numeric(target, errors="coerce")
     target_summary = _regression_target_summary(numeric_target, target)
     warnings = _base_response_warnings(target, config.response_column)
+    if int(target_summary["count"]) == 0:
+        warnings.append(
+            _response_warning(
+                issue_type="unusable_regression_response",
+                severity="high",
+                evidence="Regression response has no values that can be parsed as numeric.",
+                recommended_action="Select a numeric response or change the configured problem type.",
+                metric_name="numeric_response_count",
+                metric_value=0,
+                threshold="> 0",
+                response_column=config.response_column,
+            )
+        )
+        return to_jsonable(
+            {
+                "problem_type": "regression",
+                "available": False,
+                "response_column": config.response_column,
+                "reason": "Regression response requires at least one numeric value.",
+                "target_summary": target_summary,
+                "warnings": warnings,
+                "feature_relationships": [],
+            }
+        )
     warnings.extend(_regression_response_warnings(target_summary))
     relationships = []
     for profile in feature_profiles(type_summary, config):
@@ -459,6 +483,7 @@ def _base_response_warnings(target: pd.Series, response_column: str | None) -> l
 
 def _regression_target_summary(numeric_target: pd.Series, original_target: pd.Series) -> dict[str, Any]:
     clean = numeric_target.dropna()
+    parse_failure_count = int((numeric_target.isna() & original_target.notna()).sum())
     quantiles = clean.quantile([0.01, 0.05, 0.25, 0.50, 0.75, 0.95, 0.99]) if not clean.empty else pd.Series(dtype=float)
     q1 = quantiles.loc[0.25] if not quantiles.empty else np.nan
     q3 = quantiles.loc[0.75] if not quantiles.empty else np.nan
@@ -468,8 +493,9 @@ def _regression_target_summary(numeric_target: pd.Series, original_target: pd.Se
     return to_jsonable(
         {
             "count": int(clean.count()),
-            "missing_count": int(original_target.isna().sum() + (numeric_target.isna() & original_target.notna()).sum()),
+            "missing_count": int(original_target.isna().sum() + parse_failure_count),
             "missing_percentage": float(numeric_target.isna().mean()) if len(numeric_target) else 0.0,
+            "parse_failure_count": parse_failure_count,
             "mean": float(clean.mean()) if not clean.empty else None,
             "median": float(clean.median()) if not clean.empty else None,
             "std": float(clean.std()) if clean.count() > 1 else None,
@@ -494,6 +520,19 @@ def _regression_target_summary(numeric_target: pd.Series, original_target: pd.Se
 
 def _regression_response_warnings(target_summary: dict[str, Any]) -> list[dict[str, Any]]:
     warnings: list[dict[str, Any]] = []
+    parse_failures = int(target_summary.get("parse_failure_count") or 0)
+    if parse_failures:
+        warnings.append(
+            _response_warning(
+                issue_type="unparseable_regression_response_values",
+                severity="medium",
+                evidence=f"{parse_failures} non-missing response values could not be parsed as numeric.",
+                recommended_action="Fix response type issues before regression modeling.",
+                metric_name="parse_failure_count",
+                metric_value=parse_failures,
+                threshold=0,
+            )
+        )
     if target_summary.get("zero_variance"):
         warnings.append(
             _response_warning(

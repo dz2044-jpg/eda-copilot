@@ -50,3 +50,18 @@ def test_discover_run_history_reads_exported_metadata(tmp_path: Path) -> None:
     assert runs[0]["status"] == "available"
     assert runs[0]["dataset_name"] == "history_test"
     assert runs[0]["artifact_count"] is not None
+
+
+def test_export_run_artifacts_creates_unique_directories_for_repeated_runs(tmp_path: Path) -> None:
+    result = run_eda(
+        pd.DataFrame({"x": [1, 2, 3, 4], "target": [0, 0, 1, 1]}),
+        EDAConfig(dataset_name="collision_test", response_column="target"),
+    )
+    config = EDAConfig(dataset_name="collision_test", response_column="target")
+
+    first = export_run_artifacts(result.evidence_packet, result.markdown_report, config, tmp_path)
+    second = export_run_artifacts(result.evidence_packet, result.markdown_report, config, tmp_path)
+
+    assert first != second
+    assert first.exists()
+    assert second.exists()

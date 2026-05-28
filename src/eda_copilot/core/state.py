@@ -12,12 +12,3 @@ class EDAResult:
     evidence_packet: dict[str, Any]
     markdown_report: str
     artifact_dir: Path | None = None
-
-
-@dataclass(frozen=True)
-class ArtifactFile:
-    """File saved during an EDA run."""
-
-    label: str
-    path: Path
-    kind: str

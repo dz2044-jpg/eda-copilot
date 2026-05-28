@@ -6,6 +6,7 @@ import pandas as pd
 from pandas.api import types as pdt
 
 from eda_copilot.core.config import EDAConfig
+from eda_copilot.eda.grouping import ignored_groups, normalized_group_values, reference_current_groups
 from eda_copilot.eda.type_inference import feature_profiles
 from eda_copilot.utils.serialization import to_jsonable
 
@@ -21,12 +22,12 @@ def build_comparison_summary(
     if not group_column or group_column not in df.columns:
         return {"available": False, "reason": "No train/test or segment column selected."}
 
-    group_values = df[group_column].astype("object").where(df[group_column].notna(), "<MISSING>")
+    group_values = normalized_group_values(df[group_column])
     counts = group_values.value_counts(dropna=False)
     if len(counts) < 2:
         return {"available": False, "reason": "Selected comparison column has fewer than two groups."}
 
-    reference_group, current_group = _reference_current_groups(counts)
+    reference_group, current_group = reference_current_groups(counts)
     reference_mask = group_values == reference_group
     current_mask = group_values == current_group
 
@@ -52,6 +53,7 @@ def build_comparison_summary(
             "reference_group": reference_group,
             "current_group": current_group,
             "row_count_by_group": {str(key): int(value) for key, value in counts.items()},
+            "ignored_groups": [str(group) for group in ignored_groups(counts, (reference_group, current_group))],
             "top_column_changes": sorted(
                 column_changes,
                 key=lambda row: abs(float(row.get("change_score") or 0.0)),
@@ -59,16 +61,6 @@ def build_comparison_summary(
             )[:25],
         }
     )
-
-
-def _reference_current_groups(counts: pd.Series) -> tuple[Any, Any]:
-    normalized = {str(value).lower(): value for value in counts.index}
-    if "train" in normalized and "test" in normalized:
-        return normalized["train"], normalized["test"]
-    if "reference" in normalized and "current" in normalized:
-        return normalized["reference"], normalized["current"]
-    groups = counts.index.tolist()
-    return groups[0], groups[1]
 
 
 def _column_change(
